@@ -1,211 +1,477 @@
 {
-  "_comment": "机器人资源档案：joints 为占位关节定义，接入真机前必须替换为该机型 URDF/SDK 提供的真实定义（名称/限位/最大速度）。单位：rad、rad/s。灵巧手机型：在下方 joints 中追加各灵巧手指关节定义后启用",
+  "_comment": "机型档案：joints 由该机型默认 URDF 自动提取（名称/类型/限位/最大速度，单位 rad、rad/s）；如与真机 SDK 定义不一致，以 SDK 为准修正。",
   "model": "walker-tienkung-dex",
   "vendor": "UBTech",
   "displayName": "Walker TienKung Dex",
   "joints": [
     {
-      "name": "left_shoulder_pitch",
+      "name": "hip_pitch_l_joint",
       "type": "revolute",
-      "lower": -2.79,
-      "upper": 2.79,
-      "velocity": 8
+      "lower": -3.0543261909900763,
+      "upper": 2.792526803190927,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "left_shoulder_roll",
+      "name": "hip_roll_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -0.41887902047863906,
+      "upper": 2.6179938779914944,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "left_shoulder_yaw",
+      "name": "hip_yaw_l_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 8
+      "lower": -1.3962634015954636,
+      "upper": 4.4505895925855405,
+      "velocity": 13.82300767579509
     },
     {
-      "name": "left_elbow_pitch",
+      "name": "knee_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.78,
-      "upper": 1.78,
-      "velocity": 8
+      "lower": -0.08726646259971647,
+      "upper": 2.5307274153917776,
+      "velocity": 11.100294042683936
     },
     {
-      "name": "left_wrist_yaw",
+      "name": "ankle_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -1.1868238913561442,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "left_wrist_pitch",
+      "name": "ankle_roll_l_joint",
       "type": "revolute",
-      "lower": -1.22,
-      "upper": 1.22,
-      "velocity": 8
+      "lower": -0.5235987755982988,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "left_wrist_roll",
+      "name": "hip_pitch_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -3.0543261909900763,
+      "upper": 2.792526803190927,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "right_shoulder_pitch",
+      "name": "hip_roll_r_joint",
       "type": "revolute",
-      "lower": -2.79,
-      "upper": 2.79,
-      "velocity": 8
+      "lower": -2.6179938779914944,
+      "upper": 0.41887902047863906,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "right_shoulder_roll",
+      "name": "hip_yaw_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -4.4505895925855405,
+      "upper": 1.3962634015954636,
+      "velocity": 13.82300767579509
     },
     {
-      "name": "right_shoulder_yaw",
+      "name": "knee_pitch_r_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 8
+      "lower": -0.08726646259971647,
+      "upper": 2.5307274153917776,
+      "velocity": 11.100294042683936
     },
     {
-      "name": "right_elbow_pitch",
+      "name": "ankle_pitch_r_joint",
       "type": "revolute",
-      "lower": -1.78,
-      "upper": 1.78,
-      "velocity": 8
+      "lower": -1.1868238913561442,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "right_wrist_yaw",
+      "name": "ankle_roll_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -0.5235987755982988,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "right_wrist_pitch",
+      "name": "waist_yaw_joint",
       "type": "revolute",
-      "lower": -1.22,
-      "upper": 1.22,
-      "velocity": 8
+      "lower": -2.6179938779914944,
+      "upper": 3.2288591161895095,
+      "velocity": 10.053096491487338
     },
     {
-      "name": "right_wrist_roll",
+      "name": "waist_roll_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -0.4363323129985824,
+      "upper": 0.4363323129985824,
+      "velocity": 13.82300767579509
     },
     {
-      "name": "left_hip_pitch",
+      "name": "waist_pitch_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 12
+      "lower": -0.5235987755982988,
+      "upper": 0.8726646259971648,
+      "velocity": 13.82300767579509
     },
     {
-      "name": "left_hip_roll",
+      "name": "head_yaw_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -1.0471975511965976,
+      "upper": 1.0471975511965976,
+      "velocity": 7.644542123735163
     },
     {
-      "name": "left_hip_yaw",
+      "name": "head_pitch_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 1.05,
-      "velocity": 12
+      "lower": -0.2617993877991494,
+      "upper": 1.0122909661567112,
+      "velocity": 7.644542123735163
     },
     {
-      "name": "left_knee_pitch",
+      "name": "shoulder_pitch_l_joint",
       "type": "revolute",
-      "lower": -0.17,
-      "upper": 2.27,
-      "velocity": 12
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 7.218332720398149
     },
     {
-      "name": "left_ankle_pitch",
+      "name": "shoulder_roll_l_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 0.87,
-      "velocity": 12
+      "lower": -0.19198621771937624,
+      "upper": 3.3335788713091694,
+      "velocity": 7.218332720398149
     },
     {
-      "name": "left_ankle_roll",
+      "name": "shoulder_yaw_l_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 11.455294012539582
     },
     {
-      "name": "right_hip_pitch",
+      "name": "elbow_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 12
+      "lower": -2.548180707911721,
+      "upper": 0.19198621771937624,
+      "velocity": 11.455294012539582
     },
     {
-      "name": "right_hip_roll",
+      "name": "elbow_yaw_l_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 18.325957145940457
     },
     {
-      "name": "right_hip_yaw",
+      "name": "wrist_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 1.05,
-      "velocity": 12
+      "lower": -1.3264502315156903,
+      "upper": 1.3264502315156903,
+      "velocity": 18.325957145940457
     },
     {
-      "name": "right_knee_pitch",
+      "name": "wrist_roll_l_joint",
       "type": "revolute",
-      "lower": -0.17,
-      "upper": 2.27,
-      "velocity": 12
+      "lower": -1.3264502315156903,
+      "upper": 1.3264502315156903,
+      "velocity": 18.325957145940457
     },
     {
-      "name": "right_ankle_pitch",
+      "name": "shoulder_pitch_r_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 0.87,
-      "velocity": 12
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 7.218332720398149
     },
     {
-      "name": "right_ankle_roll",
+      "name": "shoulder_roll_r_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -3.3335788713091694,
+      "upper": 0.19198621771937624,
+      "velocity": 7.218332720398149
     },
     {
-      "name": "waist_yaw",
+      "name": "shoulder_yaw_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 11.455294012539582
     },
     {
-      "name": "head_yaw",
+      "name": "elbow_pitch_r_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 4
+      "lower": -2.548180707911721,
+      "upper": 0.19198621771937624,
+      "velocity": 11.455294012539582
     },
     {
-      "name": "head_pitch",
+      "name": "elbow_yaw_r_joint",
       "type": "revolute",
-      "lower": -0.7,
-      "upper": 0.7,
-      "velocity": 4
+      "lower": -2.844886680750757,
+      "upper": 2.844886680750757,
+      "velocity": 18.325957145940457
+    },
+    {
+      "name": "wrist_pitch_r_joint",
+      "type": "revolute",
+      "lower": -1.3264502315156903,
+      "upper": 1.3264502315156903,
+      "velocity": 18.325957145940457
+    },
+    {
+      "name": "wrist_roll_r_joint",
+      "type": "revolute",
+      "lower": -1.3264502315156903,
+      "upper": 1.3264502315156903,
+      "velocity": 18.325957145940457
+    },
+    {
+      "name": "left_thumb_yaw_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.9198622,
+      "velocity": 2
+    },
+    {
+      "name": "left_thumb_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.6108652,
+      "velocity": 2
+    },
+    {
+      "name": "left_thumb_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.041888,
+      "velocity": 2
+    },
+    {
+      "name": "left_thumb_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.9424778,
+      "velocity": 2
+    },
+    {
+      "name": "left_index_yaw_joint",
+      "type": "revolute",
+      "lower": -0.26118,
+      "upper": 0.26118,
+      "velocity": 2
+    },
+    {
+      "name": "left_index_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "left_index_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "left_index_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "left_middle_yaw_joint",
+      "type": "revolute",
+      "lower": -0.26118,
+      "upper": 0.26118,
+      "velocity": 2
+    },
+    {
+      "name": "left_middle_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "left_middle_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "left_middle_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "left_ring_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "left_ring_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "left_ring_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "left_pinky_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "left_pinky_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "left_pinky_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "right_thumb_yaw_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.9198622,
+      "velocity": 2
+    },
+    {
+      "name": "right_thumb_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.6108652,
+      "velocity": 2
+    },
+    {
+      "name": "right_thumb_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.041888,
+      "velocity": 2
+    },
+    {
+      "name": "right_thumb_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.9424778,
+      "velocity": 2
+    },
+    {
+      "name": "right_index_yaw_joint",
+      "type": "revolute",
+      "lower": -0.26118,
+      "upper": 0.26118,
+      "velocity": 2
+    },
+    {
+      "name": "right_index_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "right_index_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "right_index_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "right_middle_yaw_joint",
+      "type": "revolute",
+      "lower": -0.26118,
+      "upper": 0.26118,
+      "velocity": 2
+    },
+    {
+      "name": "right_middle_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "right_middle_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "right_middle_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "right_ring_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "right_ring_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "right_ring_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
+    },
+    {
+      "name": "right_pinky_mcp_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.3089969,
+      "velocity": 2
+    },
+    {
+      "name": "right_pinky_pip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.4835299,
+      "velocity": 2
+    },
+    {
+      "name": "right_pinky_dip_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.568,
+      "velocity": 2
     }
   ],
   "bridge": {
@@ -215,8 +481,13 @@
     "protocol": 1
   },
   "assets": {
-    "urdf": "model/walker-tienkung-dex.urdf",
-    "meshes": "model/meshes/"
+    "urdf": "model/urdf/tienkung_dex_inspire.urdf",
+    "meshes": "model/meshes/",
+    "variants": [
+      "model/urdf/tienkung_dex_base.urdf",
+      "model/urdf/tienkung_dex_brainco.urdf",
+      "model/urdf/tienkung_dex_inspire.urdf"
+    ]
   },
   "_note": "灵巧手机型：请在 joints 中追加各灵巧手指关节定义后启用"
 }

@@ -20,21 +20,39 @@ robot/
 |---|---|
 | `model` | 机型标识，与目录名一致，桥接服务 `--model` 参数使用该值 |
 | `vendor` / `displayName` | 厂商与显示名称（设备列表中展示） |
-| `joints[]` | 关节定义：`name`、`type`、`lower`/`upper`（限位，rad）、`velocity`（最大速度，rad/s）。**接真机前必须替换为真实定义** |
+| `joints[]` | 关节定义：`name`、`type`、`lower`/`upper`（限位，rad）、`velocity`（最大速度，rad/s）。当前已由各机型默认 URDF 自动提取；如与真机 SDK 定义不一致，以 SDK 为准修正 |
 | `bridge` | 桥接默认配置：`adapter`（`mock`/`ubtech`）、`wsPort`、`beaconPort`、`protocol` 版本 |
 | `assets` | 模型资源路径：`urdf`（相对本机型目录）、`meshes`（网格目录） |
 
 ## 模型资源 `model/`
 
-放置该机型的 URDF 及网格资源，约定：
+放置该机型的 URDF 及网格资源。各机型均已包含可直接加载的 URDF：
 
-```
-<机型>/model/
-├── <机型>.urdf      机器人模型描述
-└── meshes/          视觉/碰撞网格（STL/DAE/OBJ）
-```
+| 机型 | 默认 URDF | 结构 | 体积 |
+|---|---|---|---|
+| walker-s2 | `model/urdf/s2_v1_simple_hand_v4.urdf` | `urdf/`（5 变体）+ `meshes/` | 18M |
+| walker-c1 | `model/urdf/walker_c1_with_hands.urdf` | `urdf/` + `meshes/` + `textures/` | 27M |
+| walker-tienkung-pro | `model/tienkung_pro_with_hands.urdf` | 单文件 + `meshes/` + `textures/` | 126M |
+| walker-tienkung-dex | `model/urdf/tienkung_dex_inspire.urdf` | `urdf/` + `meshes/` + `hands/` + `textures/` | 230M |
 
-在网页端加载该目录中的 URDF 即可在 3D 视口中编辑动作，桥接服务按 `profile.json` 的关节定义与真机对齐。
+可选变体（见各自 `profile.json` 的 `assets.variants`）：
+
+- **walker-s2**（末端可选 hand_v4 / hand_v3 / gripper / clamp / 无执行器）：
+  `s2_v1_simple_hand_v4`（默认）、`s2_v1_simple_hand_v3`、`s2_v1_simple_gripper`、`s2_v1_simple_clamp`、`s2_v1_simple_noactuator`
+  （已移除 `complex` 高精网格变体，动作编辑用 `simple` 变体即可，体积减少约 217M）
+- **walker-c1**：`walker_c1_with_hands.urdf`（双手，默认）、`walker_c1.urdf`（无手）
+  （已移除 `with_dummyhands` 占位手变体）
+- **walker-tienkung-dex**：`tienkung_dex_inspire.urdf`（默认，RH5DG2 双手）、`tienkung_dex_base.urdf`（无手）、`tienkung_dex_brainco.urdf`（Revo2 双手）
+
+### 资源来源与路径处理
+
+- walker-s2：取自 `Walker_S2_description` 包（10 个 URDF 变体 + `meshes/`），`package://walker_s2_all/meshes/` → `../meshes/`
+- 其余机型：取自 `UBTECH-IL-LAB/ubt_sim/assets/robots/`（URDF、mesh、贴图、关键参数文档），USD 场景文件未纳入
+  - walker-tienkung-pro：`package://tiangong2pro_urdf/meshes/` → `meshes/`
+  - walker-tienkung-dex 灵巧手独立 URDF：`package://RH5DG2_*/meshes/` → `../meshes/`
+- 已校验资源完整性：**15 个 URDF 全部可解析，网格引用缺失数为 0**（`robot/` 合计约 399M），并已清理无引用的冗余网格。
+
+在网页端加载对应 URDF 即可在 3D 视口中编辑动作，桥接服务按 `profile.json` 的关节定义与真机对齐。
 
 ## 新增机型
 

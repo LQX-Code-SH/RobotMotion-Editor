@@ -1,0 +1,35 @@
+# ============================================================
+# Git LFS：机器人模型二进制资源
+# ============================================================
+# 网格文件（视觉/碰撞 STL、OBJ、DAE）
+*.stl filter=lfs diff=lfs merge=lfs -text
+*.STL filter=lfs diff=lfs merge=lfs -text
+*.obj filter=lfs diff=lfs merge=lfs -text
+*.OBJ filter=lfs diff=lfs merge=lfs -text
+*.dae filter=lfs diff=lfs merge=lfs -text
+*.DAE filter=lfs diff=lfs merge=lfs -text
+
+# USD 场景/资产
+*.usd filter=lfs diff=lfs merge=lfs -text
+*.usda filter=lfs diff=lfs merge=lfs -text
+*.usdc filter=lfs diff=lfs merge=lfs -text
+
+# WASM（USD 查看器运行时）
+*.wasm filter=lfs diff=lfs merge=lfs -text
+
+# 机器人贴图资源（仅 robot/ 目录，避免影响网页 UI 小图片）
+robot/**/*.png filter=lfs diff=lfs merge=lfs -text
+robot/**/*.PNG filter=lfs diff=lfs merge=lfs -text
+robot/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+robot/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+robot/**/*.exr filter=lfs diff=lfs merge=lfs -text
+
+# ============================================================
+# 文本文件：统一 LF，保证跨平台一致性
+# ============================================================
+*.urdf text eol=lf
+*.xacro text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+*.md text eol=lf
+*.csv text eol=lf

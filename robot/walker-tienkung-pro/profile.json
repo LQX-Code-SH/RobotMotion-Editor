@@ -1,218 +1,386 @@
 {
-  "_comment": "机器人资源档案：joints 为占位关节定义，接入真机前必须替换为该机型 URDF/SDK 提供的真实定义（名称/限位/最大速度）。单位：rad、rad/s。",
+  "_comment": "机型档案：joints 由该机型默认 URDF 自动提取（名称/类型/限位/最大速度，单位 rad、rad/s）；如与真机 SDK 定义不一致，以 SDK 为准修正。",
   "model": "walker-tienkung-pro",
   "vendor": "UBTech",
   "displayName": "Walker TienKung Pro",
   "joints": [
     {
-      "name": "left_shoulder_pitch",
+      "name": "hip_roll_l_joint",
       "type": "revolute",
-      "lower": -2.79,
-      "upper": 2.79,
-      "velocity": 8
+      "lower": -0.7853981633974483,
+      "upper": 0.7853981633974483,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "left_shoulder_roll",
+      "name": "hip_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -2.792526803190927,
+      "upper": 2.0943951023931953,
+      "velocity": 15.707963267948966
     },
     {
-      "name": "left_shoulder_yaw",
+      "name": "hip_yaw_l_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 8
+      "lower": -1.0471975511965976,
+      "upper": 1.0471975511965976,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "left_elbow_pitch",
+      "name": "knee_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.78,
-      "upper": 1.78,
-      "velocity": 8
+      "lower": 0,
+      "upper": 2.3911010752322315,
+      "velocity": 15.707963267948966
     },
     {
-      "name": "left_wrist_yaw",
+      "name": "ankle_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -1.2217304763960306,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "left_wrist_pitch",
+      "name": "ankle_roll_l_joint",
       "type": "revolute",
-      "lower": -1.22,
-      "upper": 1.22,
-      "velocity": 8
+      "lower": -0.5235987755982988,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "left_wrist_roll",
+      "name": "hip_roll_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -0.7853981633974483,
+      "upper": 0.7853981633974483,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "right_shoulder_pitch",
+      "name": "hip_pitch_r_joint",
       "type": "revolute",
-      "lower": -2.79,
-      "upper": 2.79,
-      "velocity": 8
+      "lower": -2.792526803190927,
+      "upper": 2.0943951023931953,
+      "velocity": 15.707963267948966
     },
     {
-      "name": "right_shoulder_roll",
+      "name": "hip_yaw_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -1.0471975511965976,
+      "upper": 1.0471975511965976,
+      "velocity": 16.755160819145562
     },
     {
-      "name": "right_shoulder_yaw",
+      "name": "knee_pitch_r_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 8
+      "lower": 0,
+      "upper": 2.3911010752322315,
+      "velocity": 15.707963267948966
     },
     {
-      "name": "right_elbow_pitch",
+      "name": "ankle_pitch_r_joint",
       "type": "revolute",
-      "lower": -1.78,
-      "upper": 1.78,
-      "velocity": 8
+      "lower": -1.2217304763960306,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "right_wrist_yaw",
+      "name": "ankle_roll_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -0.5235987755982988,
+      "upper": 0.5235987755982988,
+      "velocity": 14.137166941154069
     },
     {
-      "name": "right_wrist_pitch",
+      "name": "body_yaw_joint",
       "type": "revolute",
-      "lower": -1.22,
-      "upper": 1.22,
-      "velocity": 8
+      "lower": -2.9670597283903604,
+      "upper": 3.141592653589793,
+      "velocity": 9.215338450530059
     },
     {
-      "name": "right_wrist_roll",
+      "name": "head_yaw_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "left_hip_pitch",
+      "name": "head_pitch_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 12
+      "lower": -0.4363323129985824,
+      "upper": 0.4363323129985824,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "left_hip_roll",
+      "name": "head_roll_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -0.4537856055185257,
+      "upper": 0.4537856055185257,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "left_hip_yaw",
+      "name": "shoulder_pitch_l_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 1.05,
-      "velocity": 12
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 9.215338450530059
     },
     {
-      "name": "left_knee_pitch",
+      "name": "shoulder_roll_l_joint",
       "type": "revolute",
-      "lower": -0.17,
-      "upper": 2.27,
-      "velocity": 12
+      "lower": -0.2617993877991494,
+      "upper": 2.6179938779914944,
+      "velocity": 3.979350694547071
     },
     {
-      "name": "left_ankle_pitch",
+      "name": "shoulder_yaw_l_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 0.87,
-      "velocity": 12
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 5.235987755982989
     },
     {
-      "name": "left_ankle_roll",
+      "name": "elbow_pitch_l_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -2.6179938779914944,
+      "upper": 0.2617993877991494,
+      "velocity": 5.235987755982989
     },
     {
-      "name": "right_hip_pitch",
+      "name": "elbow_yaw_l_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 12
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 10.471975511965978
     },
     {
-      "name": "right_hip_roll",
+      "name": "wrist_pitch_l_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -0.7853981633974483,
+      "upper": 1.0471975511965976,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "right_hip_yaw",
+      "name": "wrist_roll_l_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 1.05,
-      "velocity": 12
+      "lower": -1.6580627893946132,
+      "upper": 1.3089969389957472,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "right_knee_pitch",
+      "name": "shoulder_pitch_r_joint",
       "type": "revolute",
-      "lower": -0.17,
-      "upper": 2.27,
-      "velocity": 12
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 9.215338450530059
     },
     {
-      "name": "right_ankle_pitch",
+      "name": "shoulder_roll_r_joint",
       "type": "revolute",
-      "lower": -1.05,
-      "upper": 0.87,
-      "velocity": 12
+      "lower": -2.6179938779914944,
+      "upper": 0.2617993877991494,
+      "velocity": 3.979350694547071
     },
     {
-      "name": "right_ankle_roll",
+      "name": "shoulder_yaw_r_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 12
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 5.235987755982989
     },
     {
-      "name": "waist_yaw",
+      "name": "elbow_pitch_r_joint",
       "type": "revolute",
-      "lower": -1.57,
-      "upper": 1.57,
-      "velocity": 8
+      "lower": -2.6179938779914944,
+      "upper": 0.2617993877991494,
+      "velocity": 5.235987755982989
     },
     {
-      "name": "waist_roll",
+      "name": "elbow_yaw_r_joint",
       "type": "revolute",
-      "lower": -0.44,
-      "upper": 0.44,
-      "velocity": 8
+      "lower": -2.9670597283903604,
+      "upper": 2.9670597283903604,
+      "velocity": 10.471975511965978
     },
     {
-      "name": "head_yaw",
+      "name": "wrist_pitch_r_joint",
       "type": "revolute",
-      "lower": -2.62,
-      "upper": 2.62,
-      "velocity": 4
+      "lower": -0.7853981633974483,
+      "upper": 1.0471975511965976,
+      "velocity": 7.5398223686155035
     },
     {
-      "name": "head_pitch",
+      "name": "wrist_roll_r_joint",
       "type": "revolute",
-      "lower": -0.7,
-      "upper": 0.7,
-      "velocity": 4
+      "lower": -1.3089969389957472,
+      "upper": 1.6580627893946132,
+      "velocity": 7.5398223686155035
+    },
+    {
+      "name": "left_thumb_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.246165,
+      "velocity": 1
+    },
+    {
+      "name": "left_thumb_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.48,
+      "velocity": 1
+    },
+    {
+      "name": "left_thumb_3_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.3578,
+      "velocity": 1
+    },
+    {
+      "name": "left_thumb_4_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.2775,
+      "velocity": 1
+    },
+    {
+      "name": "left_index_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "left_index_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "left_middle_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "left_middle_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "left_ring_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "left_ring_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "left_little_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "left_little_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "right_thumb_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.246165,
+      "velocity": 1
+    },
+    {
+      "name": "right_thumb_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.48,
+      "velocity": 1
+    },
+    {
+      "name": "right_thumb_3_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.3578,
+      "velocity": 1
+    },
+    {
+      "name": "right_thumb_4_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 0.2775,
+      "velocity": 1
+    },
+    {
+      "name": "right_index_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "right_index_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "right_middle_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "right_middle_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "right_ring_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "right_ring_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
+    },
+    {
+      "name": "right_little_1_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.333,
+      "velocity": 1
+    },
+    {
+      "name": "right_little_2_joint",
+      "type": "revolute",
+      "lower": 0,
+      "upper": 1.527,
+      "velocity": 1
     }
   ],
   "bridge": {
@@ -222,7 +390,10 @@
     "protocol": 1
   },
   "assets": {
-    "urdf": "model/walker-tienkung-pro.urdf",
-    "meshes": "model/meshes/"
+    "urdf": "model/tienkung_pro_with_hands.urdf",
+    "meshes": "model/meshes/",
+    "variants": [
+      "model/tienkung_pro_with_hands.urdf"
+    ]
   }
 }
