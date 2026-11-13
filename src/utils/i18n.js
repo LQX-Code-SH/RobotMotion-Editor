@@ -112,6 +112,8 @@ export const translations = {
 
         // 帮助对话框
         'helpTitle': `Robot Viewer v${APP_VERSION}`,
+        'robot': '真机',
+        'robotPanelTitle': '真机控制',
         'about': '关于',
         'aboutContent': 'Robot Viewer 是一个基于 Three.js 的网页端机器人模型 3D 查看器，提供直观的可视化界面，帮助您在浏览器中查看和分析机器人的结构、关节和物理属性，无需安装任何软件。<br><br>格式支持：URDF、Xacro、MJCF、USD（部分支持）<br>机器人类型：串联、分支结构及 MJCF 并联机构<br>并联机构支持关节联动，调整姿态时自动保持闭环。<br><br>由 <strong>范子琦</strong> 开发。',
         'projectHome': '项目主页',
@@ -303,6 +305,8 @@ export const translations = {
 
         // Help dialog
         'helpTitle': `Robot Viewer v${APP_VERSION}`,
+        'robot': 'Robot',
+        'robotPanelTitle': 'Robot Control',
         'about': 'About',
         'aboutContent': 'Robot Viewer is a web-based 3D viewer for robot models and scenes. Built on top of Three.js, it provides an intuitive interface for visualizing, editing, and simulating robots directly in the browser without any installation required. This tool helps you visualize and analyze robot structures, joints, and physical properties.<br><br>Format Support: URDF, Xacro, MJCF, USD (partial support)<br>Robot Types: Serial and branched robots, plus MJCF parallel mechanisms<br>Linked joints automatically maintain closed chains while editing parallel mechanism poses.<br><br>Developed by <strong>Ziqi Fan</strong>.',
         'projectHome': 'Project Home',

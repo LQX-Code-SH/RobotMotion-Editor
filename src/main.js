@@ -20,6 +20,7 @@ import { PoseController } from './animation/runtime/PoseController.js';
 import { AnimationWorkspace } from './animation/ui/AnimationWorkspace.js';
 import { MobileLayout } from './ui/MobileLayout.js';
 import { ViewGizmo } from './ui/ViewGizmo.js';
+import { RobotConnectionUI } from './robot/RobotConnectionUI.js';
 import './ui/mobile-layout.css';
 import './ui/view-gizmo.css';
 
@@ -196,6 +197,15 @@ class App {
                 poseController: this.poseController
             });
             window.animationWorkspace = this.animationWorkspace;
+
+            // Real robot bridge (device discovery, joint sync, trajectory playback)
+            this.robotConnectionUI = new RobotConnectionUI({
+                poseController: this.poseController,
+                animationWorkspace: this.animationWorkspace,
+                sceneManager: this.sceneManager
+            });
+            this.robotConnectionUI.init();
+            window.robotConnectionUI = this.robotConnectionUI;
 
             // Set measurement update callback
             this.sceneManager.onMeasurementUpdate = () => {

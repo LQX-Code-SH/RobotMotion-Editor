@@ -887,6 +887,197 @@
             max-height: calc(100vh - 120px) !important;
         }
 
+        /* Robot control floating panel */
+        #floating-robot-panel {
+            top: 80px;
+            right: 20px;
+            width: 320px;
+            height: 560px;
+            z-index: 1500;
+        }
+
+        #floating-robot-panel.maximized {
+            width: 520px !important;
+            height: calc(100vh - 120px) !important;
+        }
+
+        .robot-panel-content {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .robot-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .robot-label {
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.75;
+        }
+
+        .robot-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .robot-input {
+            flex: 1;
+            min-width: 0;
+            padding: 5px 8px;
+            font-size: 12px;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            background: var(--input-bg, #fff);
+            color: var(--text-color, #333);
+        }
+
+        .robot-btn {
+            flex: 1;
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            background: var(--button-bg, #f5f5f5);
+            color: var(--text-color, #333);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .robot-btn:hover {
+            filter: brightness(0.95);
+        }
+
+        .robot-btn.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+
+        .robot-btn.danger {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .robot-device-list {
+            max-height: 140px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+        }
+
+        .robot-device-item {
+            padding: 6px 8px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color, #eee);
+        }
+
+        .robot-device-item:last-child {
+            border-bottom: none;
+        }
+
+        .robot-device-item:hover {
+            background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .robot-device-item.selected {
+            background: rgba(37, 99, 235, 0.15);
+        }
+
+        .robot-device-item.offline {
+            opacity: 0.45;
+        }
+
+        .robot-device-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .robot-device-meta {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .robot-device-placeholder {
+            padding: 10px;
+            font-size: 12px;
+            opacity: 0.6;
+            text-align: center;
+        }
+
+        .robot-connection-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 12px;
+        }
+
+        .robot-status-connected {
+            font-weight: 600;
+            color: #16a34a;
+        }
+
+        .robot-status-disconnected {
+            opacity: 0.6;
+        }
+
+        .robot-status-detail {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .robot-telemetry {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .robot-follow-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .robot-log {
+            flex: 1;
+            min-height: 120px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            background: var(--log-bg, rgba(0, 0, 0, 0.05));
+            border-radius: 4px;
+            padding: 6px 8px;
+        }
+
+        .robot-log-line {
+            word-break: break-all;
+        }
+
+        .robot-log-time {
+            opacity: 0.5;
+            margin-right: 6px;
+        }
+
+        .robot-log-error {
+            color: #dc2626;
+        }
+
+        .robot-log-warning {
+            color: #d97706;
+        }
+
+        .robot-log-system {
+            color: #16a34a;
+        }
+
         .help-section {
             margin-bottom: 24px;
         }
@@ -2994,6 +3185,9 @@
                     <button class="tool-button" id="toggle-model-tree">
                         <span class="tool-button-text" data-i18n="structure"></span>
                     </button>
+                    <button class="tool-button" id="toggle-robot-panel">
+                        <span class="tool-button-text" data-i18n="robot"></span>
+                    </button>
                     <button class="tool-button" id="open-editor-btn">
                         <span class="tool-button-text" data-i18n="edit"></span>
                     </button>
@@ -3129,6 +3323,67 @@
                     </div>
 
                     <!-- SUPPORT_SECTION_PLACEHOLDER -->
+                </div>
+            </div>
+
+            <div id="floating-robot-panel" class="floating-panel" style="display: none;">
+                <div class="floating-panel-header">
+                    <span data-i18n="robotPanelTitle">真机控制</span>
+                    <button class="panel-maximize-btn" data-panel-id="floating-robot-panel">⛶</button>
+                    <button class="panel-close-btn" data-panel="floating-robot-panel">✕</button>
+                </div>
+                <div class="floating-panel-content robot-panel-content">
+                    <div class="robot-section">
+                        <label class="robot-label">操作站网关 (station)</label>
+                        <div class="robot-row">
+                            <input type="text" id="robot-station-url" class="robot-input" placeholder="http://192.168.1.100:8090" />
+                            <button id="robot-scan-btn" class="robot-btn">搜索设备</button>
+                        </div>
+                    </div>
+
+                    <div class="robot-section">
+                        <label class="robot-label">设备列表</label>
+                        <div id="robot-device-list" class="robot-device-list">
+                            <div class="robot-device-placeholder">点击"搜索设备"查找同网段机器人</div>
+                        </div>
+                        <div class="robot-row">
+                            <button id="robot-connect-btn" class="robot-btn primary">连接</button>
+                            <button id="robot-disconnect-btn" class="robot-btn">断开</button>
+                        </div>
+                    </div>
+
+                    <div class="robot-section">
+                        <label class="robot-label">连接状态</label>
+                        <div id="robot-connection-info" class="robot-connection-info">
+                            <span class="robot-status-disconnected">未连接</span>
+                        </div>
+                        <div id="robot-telemetry" class="robot-telemetry">暂无遥测数据</div>
+                        <label class="robot-follow-row">
+                            <input type="checkbox" id="robot-follow-toggle" />
+                            <span>视口同步（真机姿态实时映射到 3D 视口）</span>
+                        </label>
+                        <div class="robot-row">
+                            <button id="robot-enable-btn" class="robot-btn primary">使能</button>
+                            <button id="robot-disable-btn" class="robot-btn">失能</button>
+                        </div>
+                    </div>
+
+                    <div class="robot-section">
+                        <label class="robot-label">动作下发</label>
+                        <div class="robot-row">
+                            <button id="robot-send-pose-btn" class="robot-btn">发送当前位姿</button>
+                            <button id="robot-play-clip-btn" class="robot-btn primary">播放到真机</button>
+                        </div>
+                        <div class="robot-row">
+                            <button id="robot-stop-btn" class="robot-btn">停止</button>
+                            <button id="robot-estop-btn" class="robot-btn danger">⚠ 急停</button>
+                        </div>
+                    </div>
+
+                    <div class="robot-section">
+                        <label class="robot-label">日志</label>
+                        <div id="robot-log" class="robot-log"></div>
+                    </div>
                 </div>
             </div>
 

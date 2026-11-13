@@ -1,0 +1,19 @@
+{
+  "name": "robot-motion-bridge",
+  "version": "1.0.0",
+  "description": "Robot-side bridge service for RobotMotion-Editor: UDP device discovery + WebSocket control for real humanoid robots (UBTech Walker series)",
+  "type": "module",
+  "main": "robot-server.js",
+  "scripts": {
+    "robot": "node robot-server.js",
+    "robot:mock": "node robot-server.js --adapter mock",
+    "station": "node station.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "Apache-2.0"
+}

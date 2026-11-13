@@ -286,7 +286,8 @@ export class UIController {
             'floating-files-panel': 'toggle-files-panel',
             'floating-joints-panel': 'toggle-joints-panel',
             'floating-model-tree': 'toggle-model-tree',
-            'floating-help-panel': 'help-button'
+            'floating-help-panel': 'help-button',
+            'floating-robot-panel': 'toggle-robot-panel'
         };
 
         const closeButtons = document.querySelectorAll('.panel-close-btn');

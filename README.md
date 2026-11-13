@@ -2,64 +2,59 @@
 
 ---
 
-# Robot Viewer
+# Robot Motion Editor
 
-[![Version](https://img.shields.io/badge/version-v1.5.0-blue.svg)](https://github.com/fan-ziqi/robot_viewer)
+[![Version](https://img.shields.io/badge/version-v1.5.0-blue.svg)](https://github.com/LQX-Code-SH/RobotMotion-Editor)
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-web-orange.svg)](https://github.com/fan-ziqi/robot_viewer)
-[![JavaScript](https://img.shields.io/badge/language-JavaScript-f1e05a.svg)](https://github.com/fan-ziqi/robot_viewer)
+[![Platform](https://img.shields.io/badge/platform-web-orange.svg)](https://github.com/LQX-Code-SH/RobotMotion-Editor)
+[![JavaScript](https://img.shields.io/badge/language-JavaScript-f1e05a.svg)](https://github.com/LQX-Code-SH/RobotMotion-Editor)
 [![Three.js](https://img.shields.io/badge/Three.js-0.163.0-black.svg)](https://threejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-4.5.0-646cff.svg)](https://vitejs.dev/)
-[![Demo](https://img.shields.io/badge/Demo-Live-brightgreen.svg)](http://viewer.robotsfan.com/)
 
-**Robot Viewer** is a web-based 3D viewer for robot models and scenes. Built on top of [Three.js](https://threejs.org/), it provides an intuitive interface for visualizing, editing, and simulating robots directly in the browser without any installation required. It supports serial and branched robots, as well as MJCF parallel mechanisms with closed-chain joint coordination.
+**Robot Motion Editor**（原 Robot Viewer）是一个面向多款人形机器人的动作编辑 Web 平台。在浏览器中完成机器人模型可视化、动作编辑与预览，并通过真机桥接服务把关键帧轨迹下发到真实机器人执行。内置支持优必选（UBTech）Walker 系列人形机器人（Walker S2 / C1 / TienKung Pro / TienKung Dex），可搜索管理同一网段下的多台设备。
 
-**Live Demo** (All processing happens in your browser - your models never leave your device):
+## 真机动作编辑（Robot Motion Bridge）
 
-[![Try it now](https://img.shields.io/badge/🌐_Try_it_now-viewer.robotsfan.com-brightgreen?style=for-the-badge)](http://viewer.robotsfan.com/)
+- **设备发现与管理**：机器人端部署 `bridge/robot-server.js`，操作员电脑运行 `bridge/station.js` 网关，网页端可搜索、管理同一网段下的全部在线设备并直连
+- **动作编辑**：3D 视口拖拽关节 / 动画编辑器录制关键帧（Dope Sheet + 贝塞尔曲线）
+- **预览**：编辑器内实时回放，真机"视口同步"模式可将机器人姿态实时映射到 3D 视口
+- **真机播放**：动画 clip 按 fps 采样成关键帧轨迹，下发真机执行（带进度与完成回调）
+- **安全性**：服务端限位裁剪 + 关节限速 + 一键急停；遥操作（实时跟随）模式已预留
+- **机型适配**：`bridge/adapters/` 适配器层，`UbtechAdapter` 提供优必选 SDK 接缝，`MockAdapter` 支持无硬件联调
 
-## Key Features
+支持机型的模型与档案资源统一存放在 [`robot/`](robot/README.md) 目录，按机器人类型分目录管理（`robot/<机型>/profile.json` + `robot/<机型>/model/`）。
 
-- **Format Support**:
-  - **URDF**: Unified Robot Description Format
-  - **Xacro**: ROS Xacro format with macro expansion and conditional logic support
-  - **MJCF**: Mujoco XML format
-  - **USD**: Universal Scene Description (partial support)
-- **Robot Types**: Serial, branched and MJCF parallel mechanisms with `connect`, `weld` and joint equality constraints
-- **Visualization Tools**: Visual/collision geometry, inertia tensors, center of mass, coordinate frames, joint axes, shadows, ground grid visibility, coordinate system orientation
-- **Interactive Controls**: Drag joints in real-time, adjust model poses with linked motion for parallel mechanisms
-- **Axis Views**: Blender-style orientation gizmo in the upper-right corner. Click an X/Y/Z endpoint to view from that positive or negative model axis; click the aligned endpoint again to flip to the opposite side. The view keeps its orbit target and distance and follows the selected up-axis. Available in the Three.js viewer (URDF, Xacro, MJCF and meshes).
-- **Animation Editor (Experimental)**: Multi-clip dope sheet and Bézier graph editor with auto-key, multi-selection, undo/redo, play/record ranges, event and media tracks, pose snapshots, audio-reactive keys, live-input recording, autosave, and portable `.robotanim.json` projects
-- **Measurement Tools**: Measure distances between joints and links with 3D visualization, display X/Y/Z axis projections and total distance, support ground height measurement
-- **Code Editor**: Built-in CodeMirror editor with syntax highlighting and live preview
-- **Physics Simulation**: Integrated MuJoCo engine for dynamics simulation (MJCF models)
-- **Scene Management**: File tree and scene graph visualization with hierarchical structure
+详细协议与部署说明见 [`bridge/README.md`](bridge/README.md)。
+
+```bash
+# 操作员电脑：启动网关
+cd bridge && npm install && npm run station
+
+# 机器人端：启动桥接（无真机时用模拟器联调）
+node robot-server.js --adapter mock
+```
+
+## 模型与编辑器功能
+
+- **Format Support**: URDF / Xacro / MJCF / USD（部分支持）
+- **Robot Types**: 串联、分支结构及 MJCF 并联机构（闭链联动）
+- **Visualization**: 视觉/碰撞几何、惯量、质心、坐标系、关节轴、阴影、地面网格
+- **Animation Editor (Experimental)**: 多 clip Dope Sheet 与贝塞尔曲线编辑器，自动关键帧、多选、撤销/重做、事件与媒体轨道、自动保存、可移植 `.robotanim.json`
+- **Measurement Tools**: 关节/连杆距离测量
+- **Code Editor**: CodeMirror 编辑器 + 实时预览
+- **Physics Simulation**: 内置 MuJoCo 引擎（MJCF 动力学）
 
 ## Getting Started
 
-This project uses **pnpm**, but you can also use **npm** or **yarn**.
-
-Clone the repository and install dependencies:
-
 ```bash
-git clone https://github.com/fan-ziqi/robot_viewer.git
-cd robot_viewer
+git clone https://github.com/LQX-Code-SH/RobotMotion-Editor.git
+cd RobotMotion-Editor
 pnpm install
+pnpm run dev      # http://localhost:3000
+pnpm run build    # 产物输出到 dist/
+pnpm test         # 回归测试
 ```
 
-Start the development server:
-
-```bash
-pnpm run dev
-```
-
-Build for production:
-
-```bash
-pnpm run build
-```
-
-Output will be in the `dist/` directory.
 
 ## MJCF Parallel Mechanisms
 

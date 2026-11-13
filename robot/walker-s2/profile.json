@@ -1,0 +1,221 @@
+{
+  "_comment": "机器人资源档案：joints 为占位关节定义，接入真机前必须替换为该机型 URDF/SDK 提供的真实定义（名称/限位/最大速度）。单位：rad、rad/s。",
+  "model": "walker-s2",
+  "vendor": "UBTech",
+  "displayName": "Walker S2",
+  "joints": [
+    {
+      "name": "left_shoulder_pitch",
+      "type": "revolute",
+      "lower": -2.79,
+      "upper": 2.79,
+      "velocity": 6
+    },
+    {
+      "name": "left_shoulder_roll",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "left_shoulder_yaw",
+      "type": "revolute",
+      "lower": -2.62,
+      "upper": 2.62,
+      "velocity": 6
+    },
+    {
+      "name": "left_elbow_pitch",
+      "type": "revolute",
+      "lower": -1.78,
+      "upper": 1.78,
+      "velocity": 6
+    },
+    {
+      "name": "left_wrist_yaw",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "left_wrist_pitch",
+      "type": "revolute",
+      "lower": -1.22,
+      "upper": 1.22,
+      "velocity": 6
+    },
+    {
+      "name": "left_wrist_roll",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "right_shoulder_pitch",
+      "type": "revolute",
+      "lower": -2.79,
+      "upper": 2.79,
+      "velocity": 6
+    },
+    {
+      "name": "right_shoulder_roll",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "right_shoulder_yaw",
+      "type": "revolute",
+      "lower": -2.62,
+      "upper": 2.62,
+      "velocity": 6
+    },
+    {
+      "name": "right_elbow_pitch",
+      "type": "revolute",
+      "lower": -1.78,
+      "upper": 1.78,
+      "velocity": 6
+    },
+    {
+      "name": "right_wrist_yaw",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "right_wrist_pitch",
+      "type": "revolute",
+      "lower": -1.22,
+      "upper": 1.22,
+      "velocity": 6
+    },
+    {
+      "name": "right_wrist_roll",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "left_hip_pitch",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 8
+    },
+    {
+      "name": "left_hip_roll",
+      "type": "revolute",
+      "lower": -0.44,
+      "upper": 0.44,
+      "velocity": 8
+    },
+    {
+      "name": "left_hip_yaw",
+      "type": "revolute",
+      "lower": -1.05,
+      "upper": 1.05,
+      "velocity": 8
+    },
+    {
+      "name": "left_knee_pitch",
+      "type": "revolute",
+      "lower": -0.17,
+      "upper": 2.27,
+      "velocity": 8
+    },
+    {
+      "name": "left_ankle_pitch",
+      "type": "revolute",
+      "lower": -1.05,
+      "upper": 0.87,
+      "velocity": 8
+    },
+    {
+      "name": "left_ankle_roll",
+      "type": "revolute",
+      "lower": -0.44,
+      "upper": 0.44,
+      "velocity": 8
+    },
+    {
+      "name": "right_hip_pitch",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 8
+    },
+    {
+      "name": "right_hip_roll",
+      "type": "revolute",
+      "lower": -0.44,
+      "upper": 0.44,
+      "velocity": 8
+    },
+    {
+      "name": "right_hip_yaw",
+      "type": "revolute",
+      "lower": -1.05,
+      "upper": 1.05,
+      "velocity": 8
+    },
+    {
+      "name": "right_knee_pitch",
+      "type": "revolute",
+      "lower": -0.17,
+      "upper": 2.27,
+      "velocity": 8
+    },
+    {
+      "name": "right_ankle_pitch",
+      "type": "revolute",
+      "lower": -1.05,
+      "upper": 0.87,
+      "velocity": 8
+    },
+    {
+      "name": "right_ankle_roll",
+      "type": "revolute",
+      "lower": -0.44,
+      "upper": 0.44,
+      "velocity": 8
+    },
+    {
+      "name": "waist_yaw",
+      "type": "revolute",
+      "lower": -1.57,
+      "upper": 1.57,
+      "velocity": 6
+    },
+    {
+      "name": "head_yaw",
+      "type": "revolute",
+      "lower": -2.62,
+      "upper": 2.62,
+      "velocity": 4
+    },
+    {
+      "name": "head_pitch",
+      "type": "revolute",
+      "lower": -0.7,
+      "upper": 0.7,
+      "velocity": 4
+    }
+  ],
+  "bridge": {
+    "adapter": "mock",
+    "wsPort": 8081,
+    "beaconPort": 45678,
+    "protocol": 1
+  },
+  "assets": {
+    "urdf": "model/walker-s2.urdf",
+    "meshes": "model/meshes/"
+  }
+}
