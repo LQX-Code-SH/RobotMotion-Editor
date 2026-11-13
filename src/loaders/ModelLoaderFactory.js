@@ -131,6 +131,60 @@ export class ModelLoaderFactory {
     }
 
     /**
+     * 从 HTTP(S) URL 加载模型（用于内置机型资源 robot/ 目录）。
+     * 网格/贴图按 URDF 所在 URL 相对解析，无需 fileMap。
+     * @param {string} url 模型文件的绝对 URL
+     */
+    static async loadModelFromUrl(url) {
+        const ext = url.split('?')[0].split('.').pop().toLowerCase();
+        if (ext === 'urdf') {
+            return await this.loadURDFFromUrl(url);
+        }
+        throw new Error(`URL 加载暂不支持该格式: .${ext}`);
+    }
+
+    /**
+     * 从 URL 加载 URDF：下载文本后用 base URL 解析相对网格路径。
+     */
+    static async loadURDFFromUrl(url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`下载模型失败: HTTP ${response.status} ${url}`);
+        }
+        const content = await response.text();
+
+        let URDFLoader;
+        try {
+            const urdfModule = await import('urdf-loader');
+            URDFLoader = urdfModule.URDFLoader || urdfModule.default || urdfModule;
+        } catch (error) {
+            throw new Error('Failed to load urdf-loader: ' + error.message);
+        }
+
+        const loader = new URDFLoader();
+        loader.parseCollision = true;
+
+        // package:// 包名映射，其余相对路径按 URDF 所在目录解析
+        const packages = this.extractPackagesFromURDF(content);
+        if (packages.length) {
+            const packageMap = {};
+            packages.forEach(pkg => { packageMap[pkg] = pkg; });
+            packageMap[''] = '';
+            loader.packages = packageMap;
+        }
+
+        const baseUrl = new URL('.', new URL(url, document.baseURI)).href;
+
+        try {
+            const robot = loader.parse(content, baseUrl);
+            return URDFAdapter.convert(robot, content);
+        } catch (error) {
+            console.error('URDF (URL) conversion error:', error);
+            throw new Error('URDF 解析失败: ' + (error.message || error));
+        }
+    }
+
+    /**
      * Load URDF
      * @param {string} content - URDF content
      * @param {string} fileName - URDF file key in fileMap (includes path)

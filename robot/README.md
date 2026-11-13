@@ -14,6 +14,29 @@ robot/
 └── walker-tienkung-dex/       优必选 Walker TienKung Dex（灵巧手）
 ```
 
+## 机型索引 `index.json`
+
+网页左上角"机型预览"下拉列表读取 `robot/index.json` 切换模型。该文件由脚本自动生成：
+
+```bash
+pnpm run robot:index    # 扫描 robot/<机型>/profile.json 的 assets.variants 生成索引
+```
+
+变体标识规则为 **`机器人型号-末端执行器`**，例如：
+
+| 标识 | 说明 |
+|---|---|
+| `walker-s2-hand_v4` | Walker S2 + 灵巧手 v4（默认） |
+| `walker-s2-gripper` | Walker S2 + 夹爪 |
+| `walker-c1-hands` | Walker C1 + 双手（默认） |
+| `walker-c1-none` | Walker C1 无末端执行器 |
+| `walker-tienkung-pro-hands` | TienKung Pro + 双手 |
+| `walker-tienkung-dex-inspire` | TienKung Dex + Inspire 手（默认） |
+| `walker-tienkung-dex-brainco` | TienKung Dex + BrainCo 手 |
+| `walker-tienkung-dex-none` | TienKung Dex 无手 |
+
+手部独立 URDF（如 `ubt_left_hand_v3_lite.urdf`、`RH5DG2_L.urdf`）不进入索引，仅作为组合模型的子资源。
+
 ## 机型档案 `profile.json`
 
 | 字段 | 说明 |

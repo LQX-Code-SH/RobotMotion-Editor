@@ -15,6 +15,32 @@ function versionPlugin() {
   };
 }
 
+// Vite plugin: 构建时复制内置机型资源（robot/ 目录不在 public 下）
+function copyRobotAssetsPlugin() {
+  return {
+    name: 'copy-robot-assets',
+    apply: 'build',
+    async closeBundle() {
+      if (process.env.SKIP_ROBOT_ASSETS === '1') {
+        console.log('[robot-assets] SKIP_ROBOT_ASSETS=1，跳过机型资源复制');
+        return;
+      }
+      const { cp, stat } = await import('fs/promises');
+      const { resolve } = await import('path');
+      const src = resolve(process.cwd(), 'robot');
+      const dest = resolve(process.cwd(), 'dist', 'robot');
+      try {
+        await stat(src);
+      } catch {
+        return;
+      }
+      console.log('[robot-assets] 复制 robot/ 到 dist/robot（约 400MB，可用 SKIP_ROBOT_ASSETS=1 跳过）…');
+      await cp(src, dest, { recursive: true });
+      console.log('[robot-assets] 复制完成');
+    }
+  };
+}
+
 export default defineConfig({
   // Use relative paths, support file:// protocol and arbitrary deployment paths
   base: './',
@@ -24,6 +50,7 @@ export default defineConfig({
   },
   plugins: [
     versionPlugin(),
+    copyRobotAssetsPlugin(),
     // USD iframe headers plugin
     {
       name: 'configure-usd-iframe-headers',

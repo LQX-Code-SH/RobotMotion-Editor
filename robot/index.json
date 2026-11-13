@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/generate-robot-index.mjs",
+  "robots": [
+    {
+      "id": "walker-c1-hands",
+      "label": "walker-c1-hands",
+      "model": "walker-c1",
+      "displayName": "Walker C1",
+      "endEffector": "hands",
+      "urdf": "robot/walker-c1/model/urdf/walker_c1_with_hands.urdf",
+      "default": true
+    },
+    {
+      "id": "walker-c1-none",
+      "label": "walker-c1-none",
+      "model": "walker-c1",
+      "displayName": "Walker C1",
+      "endEffector": "none",
+      "urdf": "robot/walker-c1/model/urdf/walker_c1.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-s2-clamp",
+      "label": "walker-s2-clamp",
+      "model": "walker-s2",
+      "displayName": "Walker S2",
+      "endEffector": "clamp",
+      "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_clamp.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-s2-gripper",
+      "label": "walker-s2-gripper",
+      "model": "walker-s2",
+      "displayName": "Walker S2",
+      "endEffector": "gripper",
+      "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_gripper.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-s2-hand_v3",
+      "label": "walker-s2-hand_v3",
+      "model": "walker-s2",
+      "displayName": "Walker S2",
+      "endEffector": "hand_v3",
+      "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v3.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-s2-hand_v4",
+      "label": "walker-s2-hand_v4",
+      "model": "walker-s2",
+      "displayName": "Walker S2",
+      "endEffector": "hand_v4",
+      "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v4.urdf",
+      "default": true
+    },
+    {
+      "id": "walker-s2-noactuator",
+      "label": "walker-s2-noactuator",
+      "model": "walker-s2",
+      "displayName": "Walker S2",
+      "endEffector": "noactuator",
+      "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_noactuator.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-tienkung-dex-brainco",
+      "label": "walker-tienkung-dex-brainco",
+      "model": "walker-tienkung-dex",
+      "displayName": "Walker TienKung Dex",
+      "endEffector": "brainco",
+      "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_brainco.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-tienkung-dex-inspire",
+      "label": "walker-tienkung-dex-inspire",
+      "model": "walker-tienkung-dex",
+      "displayName": "Walker TienKung Dex",
+      "endEffector": "inspire",
+      "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_inspire.urdf",
+      "default": true
+    },
+    {
+      "id": "walker-tienkung-dex-none",
+      "label": "walker-tienkung-dex-none",
+      "model": "walker-tienkung-dex",
+      "displayName": "Walker TienKung Dex",
+      "endEffector": "none",
+      "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_base.urdf",
+      "default": false
+    },
+    {
+      "id": "walker-tienkung-pro-hands",
+      "label": "walker-tienkung-pro-hands",
+      "model": "walker-tienkung-pro",
+      "displayName": "Walker TienKung Pro",
+      "endEffector": "hands",
+      "urdf": "robot/walker-tienkung-pro/model/tienkung_pro_with_hands.urdf",
+      "default": true
+    }
+  ]
+}

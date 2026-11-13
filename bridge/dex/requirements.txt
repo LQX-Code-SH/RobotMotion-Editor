@@ -1,0 +1,7 @@
+# Dex 桥接服务依赖（ROS 2 由机器人系统提供，不在此列）
+websockets>=10.0
+
+# 相机推流（可选；缺省时相机功能自动禁用）
+# 机器人端推荐系统包：sudo apt install python3-opencv
+# numpy 随 ROS 2 一起提供
+# opencv-python>=4.5

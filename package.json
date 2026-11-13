@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "robot:index": "node scripts/generate-robot-index.mjs",
     "test": "node --test tests/animation/*.test.js tests/mjcf/*.test.js"
   },
   "keywords": [

@@ -21,6 +21,7 @@ import { AnimationWorkspace } from './animation/ui/AnimationWorkspace.js';
 import { MobileLayout } from './ui/MobileLayout.js';
 import { ViewGizmo } from './ui/ViewGizmo.js';
 import { RobotConnectionUI } from './robot/RobotConnectionUI.js';
+import { RobotCatalogUI } from './robot/RobotCatalogUI.js';
 import './ui/mobile-layout.css';
 import './ui/view-gizmo.css';
 
@@ -206,6 +207,11 @@ class App {
             });
             this.robotConnectionUI.init();
             window.robotConnectionUI = this.robotConnectionUI;
+
+            // Built-in robot model catalog (top-left selector)
+            this.robotCatalogUI = new RobotCatalogUI({ fileHandler: this.fileHandler });
+            this.robotCatalogUI.init();
+            window.robotCatalogUI = this.robotCatalogUI;
 
             // Set measurement update callback
             this.sceneManager.onMeasurementUpdate = () => {

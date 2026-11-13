@@ -306,6 +306,31 @@ export class FileHandler {
     }
 
     /**
+     * 从 URL 加载内置机型模型（robot/ 目录资源）。
+     * 会重置文件列表为单模型，后续所有流程（关节面板、动画工作区等）复用 onModelLoaded。
+     * @param {{url: string, name?: string}} options
+     */
+    async loadModelFromUrl({ url, name } = {}) {
+        const absoluteUrl = new URL(url, document.baseURI).href;
+        const response = await fetch(absoluteUrl);
+        if (!response.ok) {
+            throw new Error(`下载模型失败: HTTP ${response.status}`);
+        }
+        const content = await response.text();
+        const fileName = name || url.split('/').pop();
+        const pseudoFile = new File([content], fileName, { type: 'text/xml' });
+
+        this.fileMap = new Map([[fileName, pseudoFile]]);
+        this.availableModels = [{ file: pseudoFile, name: fileName, type: 'urdf', path: fileName, category: 'model' }];
+        this.currentModelFile = pseudoFile;
+        this.onFilesLoaded?.(this.availableModels);
+
+        const model = await ModelLoaderFactory.loadModelFromUrl(absoluteUrl);
+        this.onModelLoaded?.(model, pseudoFile, false, null);
+        return model;
+    }
+
+    /**
      * Load model file
      */
     async loadFile(file) {

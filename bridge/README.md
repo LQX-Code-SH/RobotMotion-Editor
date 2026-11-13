@@ -19,6 +19,7 @@ robot-server.js (机器人端, :8081)  ──►  adapters/*  ──►  机器�
 - **robot-server.js**：部署在机器人板载计算机上。周期广播 UDP 信标、响应探测、接受 WebSocket 控制指令，并把指令路由给机型适配器。
 - **station.js**：运行在操作员电脑。浏览器无法直接发 UDP，因此由 station 代为发现设备（信标 + 广播探测），并提供 WebSocket 反向代理，浏览器经 station 连接任一在线机器人。
 - **adapters/**：机型适配层。`MockAdapter` 用于无硬件联调；`UbtechAdapter` 为优必选 Walker 系列接入接缝层（注入 SDK 实现）。
+- **dex/**：天工 DEX（TienKung Dex）真机 Python 桥接，直连 ROS 2 话题，支持 31 个身体关节、BrainCo/Inspire 灵巧手与 4 路相机推流，协议与 Node 版一致并扩展了手部/相机消息。详见 [`dex/README.md`](dex/README.md)。
 
 ## 快速开始
 

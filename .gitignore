@@ -31,3 +31,7 @@ Thumbs.db
 # Local robot model assets
 /examples/mjcf/
 
+
+# Python
+__pycache__/
+*.pyc

@@ -353,7 +353,8 @@
         #top-control-bar {
             position: absolute;
             top: 20px;
-            left: 50%;
+            /* 右侧让出左上角"机型选择"占位，避免重叠 */
+            left: calc(50% + clamp(70px, 8.5vw, 175px));
             transform: translateX(-50%);
             display: flex;
             align-items: center;
@@ -885,6 +886,112 @@
         #floating-help-panel.maximized {
             width: 800px !important;
             max-height: calc(100vh - 120px) !important;
+        }
+
+        /* Robot catalog selector (top-left) */
+        .robot-catalog {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            min-height: 48px;
+            border-radius: 10px;
+            background: var(--panel-bg, rgba(30, 30, 30, 0.85));
+            color: var(--text-color, #eee);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
+            font-size: 13px;
+        }
+
+        .robot-catalog-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary, #eee);
+            white-space: nowrap;
+        }
+
+        .robot-catalog-select {
+            min-width: 260px;
+            max-width: 360px;
+            padding: 7px 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            border-radius: 6px;
+            border: 1px solid var(--border-color, #555);
+            background: var(--input-bg, #1f1f1f);
+            color: var(--text-color, #eee);
+            cursor: pointer;
+        }
+
+        .robot-catalog-select:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .robot-catalog-status {
+            font-size: 11px;
+            opacity: 0.65;
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .robot-catalog-status.loading {
+            opacity: 0.9;
+        }
+
+        .robot-catalog-status.error {
+            color: #dc2626;
+            opacity: 1;
+        }
+
+        /* 中窄屏：机型选择移到底部，顶部菜单恢复居中，彻底避免重叠 */
+        @media (max-width: 1400px) {
+            #top-control-bar {
+                left: 50%;
+            }
+
+            .robot-catalog {
+                top: auto;
+                bottom: 16px;
+                left: 12px;
+                padding: 8px 10px;
+                min-height: 0;
+            }
+
+            .robot-catalog-select {
+                min-width: 210px;
+                max-width: 250px;
+                padding: 6px 10px;
+            }
+
+            .robot-catalog-status {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .robot-catalog {
+                bottom: 16px;
+                left: 12px;
+                padding: 4px 8px;
+            }
+
+            .robot-catalog-select {
+                min-width: 170px;
+                max-width: 210px;
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+
+            .robot-catalog-label {
+                font-size: 12px;
+            }
         }
 
         /* Robot control floating panel */
@@ -3287,6 +3394,14 @@
                 <div id="hover-link-mass"></div>
                 <div id="hover-link-pose"></div>
                 <div id="hover-merged-links"></div>
+            </div>
+
+            <div id="robot-catalog" class="robot-catalog">
+                <span class="robot-catalog-label" data-i18n="robotCatalogLabel">机型选择</span>
+                <select id="robot-catalog-select" class="robot-catalog-select" disabled>
+                    <option value="">加载中…</option>
+                </select>
+                <span id="robot-catalog-status" class="robot-catalog-status"></span>
             </div>
 
             <div id="floating-help-panel" class="floating-panel" style="display: none;">
