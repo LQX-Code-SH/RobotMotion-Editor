@@ -21,7 +21,10 @@ import { AnimationWorkspace } from './animation/ui/AnimationWorkspace.js';
 import { MobileLayout } from './ui/MobileLayout.js';
 import { ViewGizmo } from './ui/ViewGizmo.js';
 import { RobotConnectionUI } from './robot/RobotConnectionUI.js';
+import { RobotDeployUI } from './robot/RobotDeployUI.js';
 import { RobotCatalogUI } from './robot/RobotCatalogUI.js';
+import { isVisualizationObject } from './utils/JointDragControls.js';
+import { JointQuickSlider } from './ui/JointQuickSlider.js';
 import './ui/mobile-layout.css';
 import './ui/view-gizmo.css';
 
@@ -134,6 +137,13 @@ class App {
             this.poseController = new PoseController(this.sceneManager);
             this.sceneManager.setPoseController(this.poseController);
 
+            // 点击关节轴箭头 / 零件时弹出的临时关节滑块
+            this.jointQuickSlider = new JointQuickSlider({
+                sceneManager: this.sceneManager,
+                poseController: this.poseController
+            });
+            this.jointQuickSlider.init();
+
             // Create USD viewer container (container only, WASM initialized on demand)
             this.createUSDViewerContainer();
 
@@ -207,6 +217,18 @@ class App {
             });
             this.robotConnectionUI.init();
             window.robotConnectionUI = this.robotConnectionUI;
+
+            // 动画编辑器工具栏的“真机播放”直接下发当前 clip
+            this.animationWorkspace.setPlayToRobotHandler(
+                (clip) => this.robotConnectionUI.playClip(clip)
+            );
+
+            // One-click firmware deployment (SSH via station, browser never holds SSH)
+            this.robotDeployUI = new RobotDeployUI({
+                connectionUI: this.robotConnectionUI
+            });
+            this.robotDeployUI.init();
+            window.robotDeployUI = this.robotDeployUI;
 
             // Built-in robot model catalog (top-left selector)
             this.robotCatalogUI = new RobotCatalogUI({ fileHandler: this.fileHandler });
@@ -323,6 +345,9 @@ class App {
      * Handle model loaded
      */
     async handleModelLoaded(model, file, isMesh = false, snapshot = null) {
+        // 模型切换后旧关节可能失效，关闭临时滑块
+        this.jointQuickSlider?.close();
+
         // Check if MJCF file (show simulation controls, don't auto-start simulation)
         const fileExt = file.name.split('.').pop().toLowerCase();
         const isMJCF = fileExt === 'xml' && model?.userData?.type === 'mjcf';
@@ -599,15 +624,10 @@ class App {
 
         // Auto-open editor and load file (skip on reload)
         // Only robot model files (non-mesh files) are loaded into editor
+        // 编辑面板默认关闭：只在用户已经打开时才自动载入文件
         if (!this._isReloading && !isMesh) {
             const editorPanel = document.getElementById('code-editor-panel');
-            if (editorPanel && this.codeEditorManager) {
-                // Keep the mobile viewer on its current drawer after loading.
-                if (!this.mobileLayout?.media.matches) editorPanel.classList.add('visible');
-                const openEditorBtn = document.getElementById('open-editor-btn');
-                if (openEditorBtn && editorPanel.classList.contains('visible')) {
-                    openEditorBtn.classList.add('active');
-                }
+            if (editorPanel && this.codeEditorManager && editorPanel.classList.contains('visible')) {
                 this.codeEditorManager.loadFile(file);
             }
         }
@@ -664,6 +684,8 @@ class App {
                         }
                         current = current.parent;
                     }
+                    // 坐标轴/关节轴等辅助对象不参与命中
+                    if (isVisualizationObject(obj)) return false;
                     return obj.isMesh && obj.visible;
                 });
 
@@ -694,10 +716,15 @@ class App {
         const toggleBtn = document.getElementById('toggle-model-tree');
         const floatingPanel = document.getElementById('floating-model-tree');
 
-        if (toggleBtn && floatingPanel) {
-            floatingPanel.style.display = 'flex';
-            toggleBtn.classList.add('active');
-        }
+        // 结构面板默认关闭，仅绑定交互
+        toggleBtn?.addEventListener('click', () => {
+            // 面板从隐藏切到可见后再按真实尺寸重排结构图
+            setTimeout(() => {
+                if (toggleBtn.classList.contains('active') && floatingPanel) {
+                    this.modelGraphView?.fitToView?.(false);
+                }
+            }, 120);
+        });
 
         if (floatingPanel) {
             // Click blank area to deselect

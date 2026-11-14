@@ -378,13 +378,14 @@ export class UIController {
         }
 
         axesBtn.addEventListener('click', () => {
+            this.closeAxesMenus?.();
             const isChecked = axesBtn.getAttribute('data-checked') === 'true';
             const newState = !isChecked;
 
             axesBtn.setAttribute('data-checked', newState.toString());
             if (newState) {
                 axesBtn.classList.add('active');
-                this.sceneManager.axesManager.showAllAxes();
+                this.sceneManager.axesManager.showSelectedLinkAxes();
 
                 // If MuJoCo simulation is running, also show its axes
                 const mujocoManager = window.app?.mujocoSimulationManager;
@@ -420,13 +421,14 @@ export class UIController {
         }
 
         jointAxesBtn.addEventListener('click', () => {
+            this.closeAxesMenus?.();
             const isChecked = jointAxesBtn.getAttribute('data-checked') === 'true';
             const newState = !isChecked;
 
             jointAxesBtn.setAttribute('data-checked', newState.toString());
             if (newState) {
                 jointAxesBtn.classList.add('active');
-                this.sceneManager.axesManager.showAllJointAxes();
+                this.sceneManager.axesManager.showSelectedJointAxes();
 
                 // If MuJoCo simulation is running, also show its joint axes
                 const mujocoManager = window.app?.mujocoSimulationManager;
@@ -449,6 +451,212 @@ export class UIController {
                 this.sceneManager.updateVisualTransparency();
                 this.sceneManager.redraw();
             }
+        });
+    }
+
+    /**
+     * 坐标轴 / 关节轴下拉菜单：按项勾选需要显示的轴。
+     * 菜单挂载到 body 并使用 fixed 定位，避免被控制栏的横向滚动裁剪。
+     */
+    setupAxesSelectionMenu(config) {
+        const caret = document.getElementById(config.caretId);
+        const button = document.getElementById(config.buttonId);
+        if (!caret || !button) return;
+
+        const axesManager = () => this.sceneManager?.axesManager;
+        let menu = null;
+
+        const closeMenu = () => {
+            if (menu) menu.hidden = true;
+            caret.setAttribute('aria-expanded', 'false');
+        };
+        this._axesMenuClosers = this._axesMenuClosers || new Set();
+        this._axesMenuClosers.add(closeMenu);
+
+        const syncScene = () => {
+            const manager = axesManager();
+            if (!manager) return;
+
+            const enabled = config.isEnabled(manager);
+            button.setAttribute('data-checked', String(enabled));
+            button.classList.toggle('active', enabled);
+
+            const mujocoManager = window.app?.mujocoSimulationManager;
+            if (mujocoManager && mujocoManager.hasScene()) {
+                // MuJoCo 场景只有整组开关，按“是否还有选中的轴”同步
+                config.syncMujoco?.(mujocoManager, enabled);
+            }
+
+            this.sceneManager.updateVisualTransparency();
+            this.sceneManager.redraw();
+        };
+
+        const renderList = (listEl) => {
+            const manager = axesManager();
+            listEl.innerHTML = '';
+            const names = manager ? config.getNames(manager) : [];
+            if (!names.length) {
+                const empty = document.createElement('div');
+                empty.className = 'joint-axes-empty';
+                empty.textContent = window.i18n?.t(config.emptyKey) || config.emptyText;
+                listEl.appendChild(empty);
+                return;
+            }
+
+            names.forEach((name) => {
+                const item = document.createElement('label');
+                item.className = 'joint-axes-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = config.isSelected(manager, name);
+                checkbox.addEventListener('change', () => {
+                    config.setVisible(manager, name, checkbox.checked);
+                    syncScene();
+                });
+
+                const text = document.createElement('span');
+                text.textContent = name;
+                text.title = `${name} · ${window.i18n?.t('axesClickHint') || '点击名称仅显示该项，勾选框可多选'}`;
+
+                // 点名称 = 仅显示该项；点勾选框 = 多选切换
+                item.title = window.i18n?.t('axesClickHint') || '点击名称仅显示该项，勾选框可多选';
+                item.addEventListener('click', (event) => {
+                    if (event.target === checkbox) return;
+                    event.preventDefault();
+                    const activeManager = axesManager();
+                    if (!activeManager) return;
+                    config.setAll(activeManager, false);
+                    config.setVisible(activeManager, name, true);
+                    renderList(listEl);
+                    syncScene();
+                });
+
+                item.append(checkbox, text);
+                listEl.appendChild(item);
+            });
+        };
+
+        const ensureMenu = () => {
+            if (menu) return menu;
+
+            menu = document.createElement('div');
+            menu.className = 'joint-axes-menu';
+            menu.hidden = true;
+
+            const head = document.createElement('div');
+            head.className = 'joint-axes-menu-head';
+            const title = document.createElement('span');
+            title.textContent = window.i18n?.t(config.titleKey) || config.titleText;
+            const allButton = document.createElement('button');
+            allButton.type = 'button';
+            allButton.textContent = window.i18n?.t('selectAll') || '全选';
+            const noneButton = document.createElement('button');
+            noneButton.type = 'button';
+            noneButton.textContent = window.i18n?.t('selectNone') || '全不选';
+            head.append(title, allButton, noneButton);
+
+            const list = document.createElement('div');
+            list.className = 'joint-axes-menu-list';
+
+            allButton.addEventListener('click', () => {
+                const manager = axesManager();
+                if (manager) config.setAll(manager, true);
+                renderList(list);
+                syncScene();
+            });
+            noneButton.addEventListener('click', () => {
+                const manager = axesManager();
+                if (manager) config.setAll(manager, false);
+                renderList(list);
+                syncScene();
+            });
+
+            menu.append(head, list);
+            menu.addEventListener('click', (event) => event.stopPropagation());
+            document.body.appendChild(menu);
+            return menu;
+        };
+
+        const openMenu = () => {
+            this.closeAxesMenus?.(closeMenu);
+            const el = ensureMenu();
+            const list = el.querySelector('.joint-axes-menu-list');
+            renderList(list);
+
+            el.hidden = false;
+            caret.setAttribute('aria-expanded', 'true');
+
+            const rect = caret.getBoundingClientRect();
+            const width = el.offsetWidth || 260;
+            const height = el.offsetHeight || 320;
+            const left = Math.min(
+                Math.max(8, rect.right - width),
+                Math.max(8, window.innerWidth - width - 8)
+            );
+            const below = rect.bottom + 8;
+            const top = below + height <= window.innerHeight - 8
+                ? below
+                : Math.max(8, rect.top - height - 8);
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+        };
+
+        caret.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (menu && !menu.hidden) closeMenu();
+            else openMenu();
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!menu || menu.hidden) return;
+            if (menu.contains(event.target) || event.target === caret) return;
+            closeMenu();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeMenu();
+        });
+    }
+
+    /** 关闭所有轴选择下拉（可保留 except） */
+    closeAxesMenus(except = null) {
+        this._axesMenuClosers?.forEach((close) => {
+            if (close !== except) close();
+        });
+    }
+
+    setupJointAxesMenu() {
+        this.setupAxesSelectionMenu({
+            caretId: 'joint-axes-menu-btn',
+            buttonId: 'toggle-joint-axes-btn',
+            titleKey: 'jointAxesSelect',
+            titleText: '要显示的关节轴',
+            emptyKey: 'jointAxesEmpty',
+            emptyText: '当前模型没有可显示的关节轴',
+            getNames: (manager) => manager.getJointAxisNames(),
+            isSelected: (manager, name) => manager.isJointAxisSelected(name),
+            setVisible: (manager, name, visible) => manager.setJointAxisVisible(name, visible),
+            setAll: (manager, visible) => manager.setAllJointAxesVisible(visible),
+            isEnabled: (manager) => manager.showJointAxesEnabled,
+            syncMujoco: (mujoco, enabled) => mujoco.toggleJointAxesDisplay(enabled)
+        });
+    }
+
+    setupLinkAxesMenu() {
+        this.setupAxesSelectionMenu({
+            caretId: 'link-axes-menu-btn',
+            buttonId: 'toggle-axes-btn',
+            titleKey: 'linkAxesSelect',
+            titleText: '要显示的坐标轴',
+            emptyKey: 'linkAxesEmpty',
+            emptyText: '当前模型没有可显示的坐标轴',
+            getNames: (manager) => manager.getLinkAxesNames(),
+            isSelected: (manager, name) => manager.isLinkAxesSelected(name),
+            setVisible: (manager, name, visible) => manager.setLinkAxesVisible(name, visible),
+            setAll: (manager, visible) => manager.setAllLinkAxesVisible(visible),
+            isEnabled: (manager) => manager.showAxesEnabled,
+            syncMujoco: (mujoco, enabled) => mujoco.toggleAxesDisplay(enabled)
         });
     }
 
@@ -545,6 +753,8 @@ export class UIController {
         this.setupPanelCloseButtons();
         this.setupAxesToggle();
         this.setupJointAxesToggle();
+        this.setupJointAxesMenu();
+        this.setupLinkAxesMenu();
         this.setupShadowToggle();
         this.setupLightingToggle();
         this.setupGridToggle();

@@ -28,7 +28,10 @@ const PROTOCOL_VERSION = 1;
 
 // ---------- 参数解析 ----------
 function parseArgs(argv) {
-    const args = { adapter: 'mock', model: 'walker-s2', name: null, wsPort: 8081, beaconPort: 45678, host: '0.0.0.0' };
+    const args = {
+        adapter: 'mock', model: 'walker-s2', name: null,
+        wsPort: 8081, statusPort: 8082, beaconPort: 45678, host: '0.0.0.0'
+    };
     const explicit = new Set();
     for (let i = 2; i < argv.length; i++) {
         const key = argv[i]?.replace(/^--/, '');
@@ -43,6 +46,7 @@ function parseArgs(argv) {
             case 'model': args.model = next; explicit.add('model'); break;
             case 'name': args.name = next; break;
             case 'ws-port': args.wsPort = parseInt(next, 10); explicit.add('ws-port'); break;
+            case 'status-port': args.statusPort = parseInt(next, 10); explicit.add('status-port'); break;
             case 'beacon-port': args.beaconPort = parseInt(next, 10); explicit.add('beacon-port'); break;
             case 'host': args.host = next; break;
             case 'sdk-module': args.sdkModule = next; break;
@@ -118,18 +122,14 @@ function getLocalIPs() {
 const wss = new WebSocketServer({ port: args.wsPort, host: args.host });
 const clients = new Set();
 
-function broadcast(payload) {
-    const data = JSON.stringify(payload);
-    for (const ws of clients) {
-        if (ws.readyState === ws.OPEN) ws.send(data);
-    }
-}
+// 状态通道（只读）：独立端口，避免遥测与相机流挤占控制连接
+const statusWss = args.statusPort > 0
+    ? new WebSocketServer({ port: args.statusPort, host: args.host })
+    : null;
+const statusClients = new Set();
 
-wss.on('connection', (ws, req) => {
-    clients.add(ws);
-    console.log(`[ws] client connected from ${req.socket.remoteAddress} (total ${clients.size})`);
-
-    ws.send(JSON.stringify({
+function welcomePayload(channel = 'control') {
+    return {
         type: 'welcome',
         protocol: PROTOCOL_VERSION,
         id: deviceId,
@@ -138,10 +138,35 @@ wss.on('connection', (ws, req) => {
         vendor: profile.vendor,
         displayName: profile.displayName,
         adapter: args.adapter,
+        channel,
         wsPort: args.wsPort,
+        statusPort: args.statusPort,
+        cameraPort: 0, // Node 版桥接不提供相机推流
+        beaconPort: args.beaconPort,
         joints: profile.joints,
         uptimeMs: Date.now() - adapter.startedAt
-    }));
+    };
+}
+
+function broadcast(payload) {
+    const data = JSON.stringify(payload);
+    for (const ws of clients) {
+        if (ws.readyState === ws.OPEN) ws.send(data);
+    }
+}
+
+function broadcastStatus(payload) {
+    const data = JSON.stringify(payload);
+    for (const ws of [...clients, ...statusClients]) {
+        if (ws.readyState === ws.OPEN) ws.send(data);
+    }
+}
+
+wss.on('connection', (ws, req) => {
+    clients.add(ws);
+    console.log(`[ws] control client connected from ${req.socket.remoteAddress} (total ${clients.size})`);
+
+    ws.send(JSON.stringify(welcomePayload('control')));
 
     ws.on('message', (raw) => {
         let msg;
@@ -153,27 +178,42 @@ wss.on('connection', (ws, req) => {
 
     ws.on('close', () => {
         clients.delete(ws);
-        console.log(`[ws] client disconnected (total ${clients.size})`);
+        console.log(`[ws] control client disconnected (total ${clients.size})`);
     });
     ws.on('error', () => clients.delete(ws));
 });
 
+if (statusWss) {
+    statusWss.on('connection', (ws, req) => {
+        statusClients.add(ws);
+        console.log(`[ws] status client connected from ${req.socket.remoteAddress} (total ${statusClients.size})`);
+        ws.send(JSON.stringify(welcomePayload('status')));
+
+        ws.on('message', (raw) => {
+            let msg;
+            try { msg = JSON.parse(raw.toString()); } catch { return; }
+            if (msg.type === 'hello') {
+                ws.send(JSON.stringify(welcomePayload('status')));
+            } else if (msg.type === 'get_status') {
+                sendStatus(ws);
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'error', code: 'readonly',
+                    message: `status channel is read-only, rejected "${msg.type}"`
+                }));
+            }
+        });
+
+        ws.on('close', () => statusClients.delete(ws));
+        ws.on('error', () => statusClients.delete(ws));
+    });
+    console.log(`[ws] status channel listening on :${args.statusPort} (read-only)`);
+}
+
 async function handleMessage(ws, msg) {
     switch (msg.type) {
         case 'hello':
-            ws.send(JSON.stringify({
-                type: 'welcome',
-                protocol: PROTOCOL_VERSION,
-                id: deviceId,
-                name: deviceName,
-                model: profile.model,
-                vendor: profile.vendor,
-                displayName: profile.displayName,
-                adapter: args.adapter,
-                wsPort: args.wsPort,
-                joints: profile.joints,
-                uptimeMs: Date.now() - adapter.startedAt
-            }));
+            ws.send(JSON.stringify(welcomePayload('control')));
             break;
 
         case 'get_status':
@@ -262,13 +302,13 @@ function statusPayload() {
 // ---------- 遥测与事件推送 ----------
 const telemetryHz = adapter.getTelemetryHz();
 setInterval(() => {
-    if (clients.size === 0) return;
-    broadcast(statusPayload());
+    if (clients.size === 0 && statusClients.size === 0) return;
+    broadcastStatus(statusPayload());
     for (const event of adapter.drainEvents?.() || []) {
-        broadcast({ type: 'robot_event', ...event, t: Date.now() });
+        broadcastStatus({ type: 'robot_event', ...event, t: Date.now() });
     }
     const doneId = adapter.consumeTrajectoryDone?.();
-    if (doneId) broadcast({ type: 'trajectory_done', trajectoryId: doneId });
+    if (doneId) broadcastStatus({ type: 'trajectory_done', trajectoryId: doneId });
 }, Math.round(1000 / telemetryHz));
 
 // ---------- UDP 设备发现 ----------
@@ -285,6 +325,9 @@ function beaconPayload() {
         vendor: profile.vendor,
         ips: getLocalIPs(),
         wsPort: args.wsPort,
+        statusPort: args.statusPort,
+        cameraPort: 0,
+        beaconPort: args.beaconPort,
         state: adapter.state,
         t: Date.now()
     });

@@ -46,6 +46,17 @@ from joint_map import (
 
 PROTOCOL_VERSION = 1
 
+# 通道划分：控制 / 状态 / 相机使用独立固定端口。
+# 控制通道保持向后兼容（接受全部消息），状态与相机通道只读。
+CHANNEL_CONTROL = 'control'
+CHANNEL_STATUS = 'status'
+CHANNEL_CAMERA = 'camera'
+
+BROADCAST_STATUS = (CHANNEL_CONTROL, CHANNEL_STATUS)
+
+STATUS_CHANNEL_TYPES = {'hello', 'get_status'}
+CAMERA_CHANNEL_TYPES = {'hello', 'get_status', 'camera_list', 'camera_subscribe', 'camera_unsubscribe'}
+
 
 # ============================================================
 # 参数
@@ -53,7 +64,9 @@ PROTOCOL_VERSION = 1
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='TienKung Dex robot bridge')
-    parser.add_argument('--ws-port', type=int, default=8081)
+    parser.add_argument('--ws-port', type=int, default=8081, help='控制通道端口（接受全部消息）')
+    parser.add_argument('--status-port', type=int, default=8082, help='状态通道端口（只读遥测，0=禁用）')
+    parser.add_argument('--camera-port', type=int, default=8083, help='相机通道端口（只读推流，0=禁用）')
     parser.add_argument('--beacon-port', type=int, default=45678)
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--model', default='walker-tienkung-dex')
@@ -378,7 +391,7 @@ class DexBridge:
         self.name = args.name or 'TienKung Dex'
         self.device_id = f'{self.model}-{os.getpid():x}'
         self.started_at = time.time()
-        self.clients = set()
+        self.clients = {}  # ws -> channel（control/status/camera）
         self.loop = None
         self.ros_node = None
         self.ros_thread = None
@@ -425,7 +438,7 @@ class DexBridge:
 
     # ---------- 消息载荷 ----------
 
-    def welcome_payload(self):
+    def welcome_payload(self, channel=CHANNEL_CONTROL):
         hands = self.hands.describe() if self.hands else {'vendor': 'none', 'sides': {}}
         cameras = []
         if self.cameras and self.cameras.available:
@@ -455,7 +468,11 @@ class DexBridge:
             'vendor': 'UBTech',
             'displayName': 'TienKung Dex',
             'adapter': 'dex',
+            'channel': channel,
             'wsPort': self.args.ws_port,
+            'statusPort': self.args.status_port,
+            'cameraPort': self.args.camera_port,
+            'beaconPort': self.args.beacon_port,
             'joints': joints,
             'controllableGroups': list(CONTROLLABLE_GROUPS),
             'legLocked': True,
@@ -491,31 +508,52 @@ class DexBridge:
         try:
             await ws.send(json.dumps(payload, ensure_ascii=False))
         except Exception:
-            self.clients.discard(ws)
+            self.clients.pop(ws, None)
 
-    async def broadcast(self, payload, skip=None):
-        if not self.clients:
+    async def broadcast(self, payload, skip=None, channels=(CHANNEL_CONTROL,)):
+        targets = [
+            ws for ws, channel in list(self.clients.items())
+            if ws is not skip and channel in channels
+        ]
+        if not targets:
             return
         data = json.dumps(payload, ensure_ascii=False)
-        for ws in list(self.clients):
-            if ws is skip:
-                continue
+        for ws in targets:
             try:
                 await ws.send(data)
             except Exception:
-                self.clients.discard(ws)
+                self.clients.pop(ws, None)
 
-    async def handler(self, ws, *args):
-        self.clients.add(ws)
+    def handler_for(self, channel):
+        """为指定通道生成 websockets 处理函数。"""
+        async def handler(ws, *args):
+            await self.handler(ws, channel)
+        return handler
+
+    async def handler(self, ws, channel=CHANNEL_CONTROL):
+        self.clients[ws] = channel
         peer = getattr(ws, 'remote_address', None)
-        self.log(f'[ws] 客户端连接 {peer}（当前 {len(self.clients)}）')
+        self.log(f'[ws] {channel} 通道客户端连接 {peer}（当前 {len(self.clients)}）')
         token = id(ws)
-        await self.send(ws, self.welcome_payload())
+        await self.send(ws, self.welcome_payload(channel))
         try:
             async for raw in ws:
                 try:
                     msg = json.loads(raw)
                 except Exception:
+                    continue
+                kind = msg.get('type')
+                allowed = None
+                if channel == CHANNEL_STATUS:
+                    allowed = STATUS_CHANNEL_TYPES
+                elif channel == CHANNEL_CAMERA:
+                    allowed = CAMERA_CHANNEL_TYPES
+                if allowed is not None and kind not in allowed:
+                    await self.send(ws, {
+                        'type': 'error',
+                        'code': 'readonly',
+                        'message': f'{channel} 通道只读，拒绝消息 {kind}',
+                    })
                     continue
                 try:
                     await self.handle(ws, token, msg)
@@ -525,7 +563,7 @@ class DexBridge:
         except Exception:
             pass
         finally:
-            self.clients.discard(ws)
+            self.clients.pop(ws, None)
             if self.cameras:
                 self.cameras.unsubscribe_token(token)
             self.log(f'[ws] 客户端断开（当前 {len(self.clients)}）')
@@ -633,12 +671,14 @@ class DexBridge:
             await asyncio.sleep(interval)
             if not self.clients:
                 continue
-            await self.broadcast(self.status_payload())
+            await self.broadcast(self.status_payload(), channels=BROADCAST_STATUS)
             for event in self.robot.drain_events() if self.robot else []:
-                await self.broadcast({'type': 'robot_event', **event, 't': int(time.time() * 1000)})
+                await self.broadcast({'type': 'robot_event', **event, 't': int(time.time() * 1000)},
+                                     channels=BROADCAST_STATUS)
             done = self.robot.take_trajectory_done() if self.robot else None
             if done:
-                await self.broadcast({'type': 'trajectory_done', 'trajectoryId': done})
+                await self.broadcast({'type': 'trajectory_done', 'trajectoryId': done},
+                                     channels=BROADCAST_STATUS)
 
     # ---------- UDP 发现 ----------
 
@@ -653,6 +693,9 @@ class DexBridge:
             'vendor': 'UBTech',
             'ips': get_local_ips(),
             'wsPort': self.args.ws_port,
+            'statusPort': self.args.status_port,
+            'cameraPort': self.args.camera_port,
+            'beaconPort': self.args.beacon_port,
             'state': 'ready' if self.robot and self.robot.enabled else 'idle',
             'hands': self.hands.vendor if self.hands else 'none',
             't': int(time.time() * 1000),
@@ -694,14 +737,34 @@ class DexBridge:
 
     async def run(self):
         import websockets
+        from contextlib import AsyncExitStack
 
         self.loop = asyncio.get_running_loop()
         self.start_udp()
         asyncio.create_task(self.telemetry_loop())
-        async with websockets.serve(self.handler, self.args.host, self.args.ws_port,
-                                    max_size=8 * 1024 * 1024):
-            ips = get_local_ips()
-            self.log(f'[bridge] WS 服务 ws://{ips[0]}:{self.args.ws_port}')
+
+        servers = (
+            (self.args.ws_port, CHANNEL_CONTROL, '控制'),
+            (self.args.status_port, CHANNEL_STATUS, '状态'),
+            (self.args.camera_port, CHANNEL_CAMERA, '相机'),
+        )
+        used_ports = set()
+        ips = get_local_ips()
+        host_ip = ips[0] if ips else '127.0.0.1'
+
+        async with AsyncExitStack() as stack:
+            for port, channel, label in servers:
+                if not port:
+                    self.log(f'[bridge] {label}通道已禁用（端口 0）')
+                    continue
+                if port in used_ports:
+                    self.log(f'[bridge] {label}通道端口 {port} 与其他通道冲突，已跳过')
+                    continue
+                used_ports.add(port)
+                await stack.enter_async_context(
+                    websockets.serve(self.handler_for(channel), self.args.host, port,
+                                     max_size=8 * 1024 * 1024))
+                self.log(f'[bridge] {label}通道 ws://{host_ip}:{port}')
             self.log(f'[bridge] 机型 {self.model} | 手 {self.hands.vendor} | '
                      f'相机 {"可用" if self.cameras.available else "不可用"}')
             await asyncio.Future()

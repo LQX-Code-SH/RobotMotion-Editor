@@ -339,6 +339,22 @@ export class AnimationStore {
         return track && keyframe ? { track, keyframe } : null;
     }
 
+    /**
+     * 同一时间列上的所有关键帧引用（跨轨道）。
+     * 用于 Alt/Option + 单击关键帧时一键选中整列。
+     */
+    keyframesAt(timeMs, toleranceMs = 0.5) {
+        const refs = [];
+        this.activeClip?.tracks.forEach((track) => {
+            track.keyframes?.forEach((keyframe) => {
+                if (Math.abs(keyframe.timeMs - timeMs) <= toleranceMs) {
+                    refs.push({ trackId: track.id, keyframeId: keyframe.id });
+                }
+            });
+        });
+        return refs;
+    }
+
     clampTrackValue(track, value) {
         const lower = Number.isFinite(track?.valueRange?.lower) ? track.valueRange.lower : -Infinity;
         const upper = Number.isFinite(track?.valueRange?.upper) ? track.valueRange.upper : Infinity;

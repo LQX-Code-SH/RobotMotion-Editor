@@ -15,6 +15,71 @@ function isURDFJoint(obj) {
 }
 
 /**
+ * 是否为可视化辅助对象（关节轴箭头、link 坐标轴等）。
+ * 这类 mesh 挂在 link/joint 下，但 userData.isVisualization = true，
+ * 若参与射线检测会被当成模型本体，命中后向上解析出错误的 link。
+ */
+export function isVisualizationObject(object) {
+    let node = object;
+    while (node) {
+        if (node.userData?.isVisualization) return true;
+        node = node.parent;
+    }
+    return false;
+}
+
+/** 祖先链上是否都可见（隐藏的关节轴不参与交互） */
+function isEffectivelyVisible(object) {
+    let node = object;
+    while (node) {
+        if (node.visible === false) return false;
+        node = node.parent;
+    }
+    return true;
+}
+
+/** 命中对象所属的关节轴名称（非关节轴返回 null） */
+export function findJointAxisName(object) {
+    let node = object;
+    while (node) {
+        if (node.userData?.jointAxisName) return node.userData.jointAxisName;
+        node = node.parent;
+    }
+    return null;
+}
+
+/** 取关节对象下第一个 link 节点（即该关节驱动的子 link） */
+function findFirstChildLink(jointObject) {
+    if (!jointObject) return null;
+    for (const child of jointObject.children || []) {
+        if (child.isURDFLink || child.type === 'URDFLink') return child;
+        const nested = findFirstChildLink(child);
+        if (nested) return nested;
+    }
+    return null;
+}
+
+/**
+ * 命中关节轴箭头时，映射到该关节驱动的子 link。
+ * 这样后续 findParentJoint(childLink) 会解析回同一个关节，拖拽箭头即可转动对应关节。
+ */
+export function resolveJointAxisLink(object, model) {
+    const jointName = findJointAxisName(object);
+    if (!jointName || !model?.joints) return null;
+
+    const joint = model.joints.get(jointName);
+    if (!isScalarJoint(joint) || !joint.threeObject) return null;
+
+    const childLink = findFirstChildLink(joint.threeObject);
+    if (!childLink) return null;
+
+    const linkData = model.links?.get(childLink.name);
+    if (!linkData) return null;
+
+    return { linkData, threeObject: childLink, name: childLink.name };
+}
+
+/**
  * Find the Link that the clicked object belongs to
  * Traverse upward from clicked mesh to find first URDFLink object
  * Simple and direct, no merge logic
@@ -165,6 +230,10 @@ export class JointDragControls {
             if (isInCollider) {
                 return false;
             }
+            // 辅助对象默认不参与命中；显示的关节轴箭头例外，允许拖拽对应关节
+            if (isVisualizationObject(obj)) {
+                return Boolean(findJointAxisName(obj)) && isEffectivelyVisible(obj);
+            }
             // Allow all visual meshes
             return obj.isMesh;
         });
@@ -172,7 +241,8 @@ export class JointDragControls {
         // Like urdf-loaders, only detect first intersecting object (closest)
         if (validIntersections.length !== 0) {
             const hit = validIntersections[0];
-            hoveredLink = findParentLink(hit.object, model);
+            // 命中关节轴箭头时映射到该关节驱动的子 link，其余按网格解析
+            hoveredLink = resolveJointAxisLink(hit.object, model) || findParentLink(hit.object, model);
 
             if (hoveredLink) {
                 this.hitDistance = hit.distance;
@@ -470,11 +540,18 @@ export class PointerJointDragControls extends JointDragControls {
                 if (isInCollider) {
                     return false;
                 }
+                // 辅助对象默认不参与命中；显示的关节轴箭头例外，允许拖拽对应关节
+                if (isVisualizationObject(obj)) {
+                    return Boolean(findJointAxisName(obj)) && isEffectivelyVisible(obj);
+                }
                 // Allow all visual meshes
                 return obj.isMesh;
             });
 
-            const hitLink = validIntersections.length > 0 ? findParentLink(validIntersections[0].object, this.model) : null;
+            const hitLink = validIntersections.length > 0
+                ? (resolveJointAxisLink(validIntersections[0].object, this.model)
+                    || findParentLink(validIntersections[0].object, this.model))
+                : null;
 
             // Only set grabbed if we actually hit a visible link
             if (hitLink) {

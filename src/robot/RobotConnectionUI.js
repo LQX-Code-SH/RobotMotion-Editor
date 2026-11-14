@@ -2,14 +2,15 @@ import { RobotBridgeClient, scanDevices } from './RobotBridgeClient.js';
 import { evaluateClip } from '../animation/core/BezierEvaluator.js';
 
 /**
- * 真机控制模块：设备搜索、连接管理、关节状态同步、
- * 关键帧轨迹下发与真机播放，并挂载到"真机控制"悬浮面板。
+ * 真机控制模块：按设备地址连接、关节状态同步、位姿/回零下发、
+ * 动画轨迹播放，并挂载到"真机控制"悬浮面板。
  *
  * 编辑工作流（与现有动画编辑器打通）：
  *  1. 在 3D 视口 / 关节面板 / 动画编辑器中编辑动作；
  *  2. "发送当前位姿"：把 PoseController 当前位姿作为 follow 模式单步目标下发；
- *  3. "播放到真机"：把当前选中动画 clip 按 fps 采样成关键帧轨迹下发执行；
- *  4. follow 同步模式：机器人关节状态实时回灌到 3D 视口（真机姿态镜像）。
+ *  3. "真机回零"：所有可直控关节下发 0 位（腿部/手部除外）；
+ *  4. 动画编辑器"真机播放"：把当前 clip 按 fps 采样成关键帧轨迹下发执行（playClip）；
+ *  5. follow 同步模式：机器人关节状态实时回灌到 3D 视口（真机姿态镜像）。
  */
 export class RobotConnectionUI {
     /**
@@ -25,6 +26,8 @@ export class RobotConnectionUI {
 
         this.client = new RobotBridgeClient();
         this.device = null;              // 当前连接的设备档案
+        this.state = 'idle';             // idle | connecting | connected | error
+        this.stateMessage = '';          // 失败原因等状态说明
         this.followEnabled = false;      // 真机状态 -> 视口同步
         this.logLines = [];
         this.maxLogLines = 200;
@@ -36,25 +39,29 @@ export class RobotConnectionUI {
 
     init() {
         this._bindPanel();
-        this.appendLog('system', '真机控制模块就绪。请先启动 bridge/station.js，再搜索设备。');
-        // 初始 station 地址：与页面同主机 + 默认端口 8090
-        const input = document.getElementById('robot-station-url');
-        if (input && !input.value) {
-            const host = window.location.hostname || 'localhost';
-            input.value = `http://${host}:8090`;
-        }
-        // 记住上次使用的地址
-        const saved = localStorage.getItem('robot-station-url');
-        if (saved && input) input.value = saved;
+        this.appendLog('system', '真机控制模块就绪。填写设备地址后点“连接”。');
+
+        const input = document.getElementById('robot-device-address');
+        const saved = localStorage.getItem('robot-device-address');
+        if (saved && input && !input.value) input.value = saved;
+    }
+
+    /** 操作站地址：显式 http 地址则用之，否则默认页面同主机 :8090 */
+    get stationUrl() {
+        const address = this._address();
+        if (/^https?:\/\//i.test(address)) return address.replace(/\/+$/, '');
+        const host = window.location.hostname || 'localhost';
+        return `http://${host}:8090`;
+    }
+
+    _address() {
+        return (document.getElementById('robot-device-address')?.value || '').trim();
     }
 
     _bindPanel() {
         const $ = (id) => document.getElementById(id);
-        $('robot-scan-btn')?.addEventListener('click', () => this.scan());
-        $('robot-connect-btn')?.addEventListener('click', () => this.connectSelected());
+        $('robot-connect-btn')?.addEventListener('click', () => this.connect());
         $('robot-disconnect-btn')?.addEventListener('click', () => this.disconnect());
-        $('robot-enable-btn')?.addEventListener('click', () => this.enableRobot());
-        $('robot-disable-btn')?.addEventListener('click', () => this.disableRobot());
         $('robot-follow-toggle')?.addEventListener('change', (e) => {
             this.followEnabled = e.target.checked;
             this.appendLog('system', this.followEnabled
@@ -62,119 +69,187 @@ export class RobotConnectionUI {
                 : '视口同步已关闭。');
         });
         $('robot-send-pose-btn')?.addEventListener('click', () => this.sendCurrentPose());
-        $('robot-play-clip-btn')?.addEventListener('click', () => this.playSelectedClip());
+        $('robot-home-btn')?.addEventListener('click', () => this.homeRobot());
         $('robot-stop-btn')?.addEventListener('click', () => this.stopRobot());
         $('robot-estop-btn')?.addEventListener('click', () => this.emergencyStop());
-        $('robot-station-url')?.addEventListener('change', (e) => {
-            localStorage.setItem('robot-station-url', e.target.value.trim());
+
+        const addressInput = $('robot-device-address');
+        addressInput?.addEventListener('change', (e) => {
+            localStorage.setItem('robot-device-address', e.target.value.trim());
+            if (this.state === 'error') this._setState('idle');
         });
-        $('robot-device-list')?.addEventListener('click', (e) => {
-            const item = e.target.closest('[data-device-id]');
-            if (item) {
-                this.selectedDeviceId = item.getAttribute('data-device-id');
-                this._highlightSelection();
-            }
+        addressInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.connect();
         });
     }
 
-    // ---------- 设备搜索与连接 ----------
+    // ---------- 连接 ----------
 
-    async scan() {
-        const urlInput = document.getElementById('robot-station-url');
-        const listEl = document.getElementById('robot-device-list');
-        const stationUrl = (urlInput?.value || '').trim();
-        if (!stationUrl) {
-            this.appendLog('error', '请先填写操作站网关地址（station.js 的 HTTP 地址）');
+    async connect() {
+        if (this.state === 'connecting') return;
+
+        const address = this._address();
+        if (!address) {
+            this._setState('error', '请填写设备地址');
+            this.appendLog('error', '请填写设备地址（机器人 IP，或操作站 http 地址）。');
             return;
         }
-        localStorage.setItem('robot-station-url', stationUrl);
-        listEl.innerHTML = '<div class="robot-device-placeholder">搜索中…</div>';
+        localStorage.setItem('robot-device-address', address);
+
+        // 先清空 device，避免 close 触发“掉线”事件
+        this.device = null;
+        this.client.close();
+        this.followEnabled = false;
+        const toggle = document.getElementById('robot-follow-toggle');
+        if (toggle) toggle.checked = false;
+
+        this._setState('connecting');
+        this.appendLog('system', `连接 ${address}…`);
+
         try {
-            const devices = await scanDevices(stationUrl);
-            this.renderDeviceList(devices);
-            this.appendLog('system', `发现 ${devices.length} 台设备。`);
+            if (/^https?:\/\//i.test(address)) {
+                await this._connectViaStation(address.replace(/\/+$/, ''));
+            } else {
+                await this._connectDirect(address);
+            }
         } catch (err) {
-            listEl.innerHTML = '<div class="robot-device-placeholder">搜索失败</div>';
-            this.appendLog('error', `搜索失败：${err.message}（请确认 bridge/station.js 已启动且地址正确）`);
+            this._setState('error', err.message);
+            this.appendLog('error', `连接失败：${err.message}`);
         }
     }
 
-    renderDeviceList(devices) {
-        const listEl = document.getElementById('robot-device-list');
-        if (!devices.length) {
-            listEl.innerHTML = '<div class="robot-device-placeholder">未发现设备。请确认机器人端 robot-server.js 已启动。</div>';
-            return;
-        }
-        listEl.innerHTML = devices.map(dev => `
-            <div class="robot-device-item${dev.online ? '' : ' offline'}" data-device-id="${dev.id}">
-                <div class="robot-device-name">${escapeHtml(dev.name)}</div>
-                <div class="robot-device-meta">${escapeHtml(dev.displayName || dev.model)} · ${escapeHtml(dev.ip || '')} · ${dev.online ? '在线' : '离线'}</div>
-            </div>
-        `).join('');
-        this._devices = devices;
-    }
+    /** 经操作站发现唯一设备后连接（一个地址只会有一台设备） */
+    async _connectViaStation(stationUrl) {
+        const devices = await this._onlineDevices(stationUrl);
+        if (!devices.length) throw new Error('未发现设备');
 
-    _highlightSelection() {
-        document.querySelectorAll('#robot-device-list .robot-device-item').forEach(el => {
-            el.classList.toggle('selected', el.getAttribute('data-device-id') === this.selectedDeviceId);
-        });
-    }
+        const device = devices[0];
+        const urls = [device.directUrl, device.proxyUrl].filter(Boolean);
+        if (!urls.length) throw new Error('未发现设备（设备没有可用连接地址）');
 
-    async connectSelected() {
-        if (!this.selectedDeviceId) {
-            this.appendLog('error', '请先在列表中选择一台设备。');
-            return;
-        }
-        const dev = (this._devices || []).find(d => d.id === this.selectedDeviceId);
-        if (!dev) {
-            this.appendLog('error', '所选设备已失效，请重新搜索。');
-            return;
-        }
-
-        // 优先直连机器人，失败回退经 station 代理
-        const urls = dev.directUrl ? [dev.directUrl, dev.proxyUrl] : [dev.proxyUrl];
+        let lastError = null;
         for (const url of urls) {
-            if (!url) continue;
             try {
-                this.appendLog('system', `连接 ${dev.name} (${url})…`);
-                const welcome = await this.client.connect(url);
+                const welcome = await this.client.connect(url, { timeoutMs: 8000 });
                 this.device = welcome;
                 this._onConnected(welcome, url);
                 return;
             } catch (err) {
-                this.appendLog('system', `连接失败：${err.message}`);
+                lastError = err;
+                this.appendLog('system', `连接 ${url} 失败：${err.message}`);
             }
         }
-        this.appendLog('error', '所有连接方式均失败。');
+        throw lastError || new Error('未发现设备');
+    }
+
+    /** 直连机器人控制端口；必要时用操作站补上该地址注册的端口 */
+    async _connectDirect(address) {
+        const { host, port } = this._parseHostPort(address);
+        const urls = [`ws://${host}:${port || 8081}`];
+
+        try {
+            const devices = await this._onlineDevices(this.stationUrl);
+            const device = devices.find(d => d.ip === host || d.directUrl?.includes(`//${host}:`));
+            if (device) {
+                for (const url of [device.directUrl, device.proxyUrl].filter(Boolean)) {
+                    if (!urls.includes(url)) urls.push(url);
+                }
+            }
+        } catch { /* 操作站不可用不影响直连 */ }
+
+        let lastError = null;
+        for (const url of urls) {
+            try {
+                const welcome = await this.client.connect(url, { timeoutMs: 6000 });
+                this.device = welcome;
+                this._onConnected(welcome, url);
+                return;
+            } catch (err) {
+                lastError = err;
+                this.appendLog('system', `连接 ${url} 失败：${err.message}`);
+            }
+        }
+        throw new Error(`未发现设备（直连 ${urls[0]} 失败：${lastError?.message || '无响应'}）`);
+    }
+
+    _parseHostPort(address) {
+        const value = address.replace(/^wss?:\/\//i, '').replace(/\/+$/, '');
+        const [hostPart, portPart] = value.split(':');
+        const host = hostPart || 'localhost';
+        const port = portPart && /^\d+$/.test(portPart) ? Number(portPart) : null;
+        return { host, port };
+    }
+
+    async _onlineDevices(stationUrl) {
+        if (!stationUrl) throw new Error('未配置操作站地址');
+        let devices;
+        try {
+            devices = await scanDevices(stationUrl);
+        } catch (err) {
+            throw new Error(`无法访问操作站 ${stationUrl}（${err.message}）`);
+        }
+        return (devices || []).filter(device => device.online);
     }
 
     _onConnected(welcome, url) {
-        this.appendLog('system', `已连接 ${welcome.displayName || welcome.name}（${welcome.model}，${welcome.joints?.length || 0} 关节，适配器：${welcome.adapter}）`);
-        this.updateConnectionInfo();
+        this._setState('connected');
+        this.appendLog('system', `连接成功：${welcome.displayName || welcome.name}-${welcome.id}`
+            + `（${welcome.model}，${welcome.joints?.length || 0} 关节，适配器：${welcome.adapter}）`);
         this.validateJointMatch();
+        // 面板不再提供使能按钮：连接后自动使能，失败只告警不阻断连接
+        this._autoEnable();
+    }
+
+    async _autoEnable() {
+        if (!this.client.connected) return;
+        const ack = await this.client.enable();
+        if (ack?.accepted) {
+            this.appendLog('system', '已自动使能。');
+        } else {
+            this.appendLog('warning', `自动使能未成功：${ack?.reason || '未知原因'}（需在机器人侧确认使能状态后再下发动作）`);
+        }
+    }
+
+    _setState(state, message = '') {
+        this.state = state;
+        this.stateMessage = message;
+        this.updateConnectionInfo();
+        // 动画编辑器的“真机播放”按钮跟随连接状态
+        this.animationWorkspace?.setRobotAvailable?.(state === 'connected');
     }
 
     disconnect() {
-        this.client.close();
+        const wasConnected = Boolean(this.device);
         this.device = null;
+        this.client.close();
         this.followEnabled = false;
         const toggle = document.getElementById('robot-follow-toggle');
         if (toggle) toggle.checked = false;
-        this.appendLog('system', '已断开连接。');
-        this.updateConnectionInfo();
+        this._setState('idle');
+        if (wasConnected) this.appendLog('system', '已断开连接。');
     }
 
     updateConnectionInfo() {
         const infoEl = document.getElementById('robot-connection-info');
         if (!infoEl) return;
+
         if (!this.device) {
-            infoEl.innerHTML = '<span class="robot-status-disconnected">未连接</span>';
+            if (this.state === 'connecting') {
+                infoEl.innerHTML = '<span class="robot-status-connecting">连接中…</span>';
+            } else if (this.state === 'error') {
+                infoEl.innerHTML = `<span class="robot-status-error">连接失败：${escapeHtml(this.stateMessage || '未知原因')}</span>`;
+            } else {
+                infoEl.innerHTML = '<span class="robot-status-disconnected">未连接</span>';
+            }
             return;
         }
+
         const status = this.client.status;
+        const name = this.device.displayName || this.device.name || '设备';
+        const id = this.device.id || '-';
         infoEl.innerHTML = `
-            <span class="robot-status-connected">${escapeHtml(this.device.displayName || this.device.name)}</span>
-            <span class="robot-status-detail">状态：${status ? status.state : '-'} · 模式：${status ? status.mode : '-'} · 使能：${status ? (status.enabled ? '是' : '否') : '-'}</span>
+            <span class="robot-status-connected">连接成功：${escapeHtml(name)}-${escapeHtml(id)}</span>
+            <span class="robot-status-detail">状态：${status ? status.state : '-'} · 模式：${status ? status.mode : '-'}</span>
         `;
     }
 
@@ -209,22 +284,6 @@ export class RobotConnectionUI {
         return names;
     }
 
-    // ---------- 使能 / 模式 ----------
-
-    async enableRobot() {
-        if (!this._requireConnected()) return;
-        const ack = await this.client.enable();
-        if (ack.accepted) this.appendLog('system', '机器人已上电使能。');
-        else this.appendLog('error', `使能失败：${ack.reason || '未知原因'}`);
-    }
-
-    async disableRobot() {
-        if (!this._requireConnected()) return;
-        const ack = await this.client.disable();
-        if (ack.accepted) this.appendLog('system', '机器人已下电失能。');
-        else this.appendLog('error', `失能失败：${ack.reason || '未知原因'}`);
-    }
-
     // ---------- 动作下发 ----------
 
     /** 把当前视口位姿下发为 follow 模式单步目标 */
@@ -245,13 +304,11 @@ export class RobotConnectionUI {
     }
 
     /**
-     * 把动画编辑器当前选中 clip 采样为关键帧轨迹并下发真机播放。
+     * 把指定动画 clip 采样为关键帧轨迹并下发真机播放。
+     * 入口在动画编辑器工具栏的“真机播放”，由 main.js 注入本方法。
      */
-    async playSelectedClip() {
+    async playClip(clip) {
         if (!this._requireConnected()) return;
-        const store = this.animationWorkspace?.store;
-        const project = store?.project;
-        const clip = project?.clips?.find(c => c.id === project.activeClipId) || project?.clips?.[0];
         if (!clip) {
             this.appendLog('error', '没有可播放的动画 clip。请先在动画编辑器中录制或编辑动作。');
             return;
@@ -296,6 +353,37 @@ export class RobotConnectionUI {
         }
     }
 
+    /**
+     * 真机回零：所有可直控关节下发 0 位（follow 单步目标，服务端限位限速）。
+     * 腿部由运控独占、手部走独立通道，均排除。
+     */
+    async homeRobot() {
+        if (!this._requireConnected(true)) return;
+
+        const joints = (this.device?.joints || []).filter(joint =>
+            joint.controllable !== false && joint.group !== 'leg' && joint.group !== 'hand');
+        if (!joints.length) {
+            this.appendLog('error', '设备未提供可回零的关节定义，无法回零。');
+            return;
+        }
+
+        const targets = {};
+        for (const joint of joints) targets[joint.name] = 0;
+
+        this.appendLog('system', `下发回零（${joints.length} 关节）…`);
+        await this.client.setMode('follow');
+        const ack = await this.client.sendJointTargets(targets);
+        if (ack.accepted) {
+            const count = Object.keys(ack.applied || targets).length;
+            this.appendLog('system', `回零指令已接受（${count} 关节）。`);
+            if (ack.rejected && Object.keys(ack.rejected).length) {
+                this.appendLog('warning', `以下关节被拒绝：${Object.keys(ack.rejected).slice(0, 8).join(', ')}`);
+            }
+        } else {
+            this.appendLog('error', `回零失败：${ack.reason || '未知原因'}`);
+        }
+    }
+
     async stopRobot() {
         if (!this._requireConnected()) return;
         const ack = await this.client.stop();
@@ -325,9 +413,11 @@ export class RobotConnectionUI {
 
     _wireClientEvents() {
         this.client.onClose = () => {
-            this.appendLog('system', '与机器人的连接已断开。');
+            // 连接尝试过程中的关闭不计入“掉线”
+            if (!this.device) return;
             this.device = null;
-            this.updateConnectionInfo();
+            this._setState('idle');
+            this.appendLog('system', '与机器人的连接已断开。');
         };
 
         this.client.onStatus = (status) => {

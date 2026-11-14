@@ -138,6 +138,48 @@ export function isScalarJoint(joint) {
     return ['revolute', 'continuous', 'prismatic'].includes(joint?.type);
 }
 
+// 关节分组：先按部位（头/腰/手/臂/腿），再按左右细分，供关节面板分类展示。
+// 匹配按词边界进行，避免 overhead 之类的词误命中 head。
+const JOINT_REGION_PATTERNS = [
+    ['head', /(?:^|[^a-z])(?:head|neck|skull|jaw)(?:[^a-z]|$)/i],
+    ['waist', /(?:^|[^a-z])(?:waist|torso|spine|trunk|abdomen|pelvis)(?:[^a-z]|$)/i],
+    ['hand', /(?:^|[^a-z])(?:hand|finger|thumb|index|middle|ring|little|pinky|palm|gripper|claw|manipulator)(?:[^a-z]|$)/i],
+    ['arm', /(?:^|[^a-z])(?:shoulder|clavicle|elbow|wrist|forearm|arm|sixforce)(?:[^a-z]|$)/i],
+    ['leg', /(?:^|[^a-z])(?:hip|thigh|knee|shin|calf|ankle|foot|feet|toe|leg)(?:[^a-z]|$)/i]
+];
+
+const JOINT_LEFT_PATTERN = /(?:^|[^a-z])(?:l|left)(?:[^a-z]|$)/i;
+const JOINT_RIGHT_PATTERN = /(?:^|[^a-z])(?:r|right)(?:[^a-z]|$)/i;
+
+// 面板展示顺序：头 → 左右臂 → 左右手 → 腰 → 左右腿 → 其他
+export const JOINT_PARTS = [
+    'head',
+    'leftArm', 'rightArm', 'arm',
+    'leftHand', 'rightHand', 'hand',
+    'waist',
+    'leftLeg', 'rightLeg', 'leg',
+    'other'
+];
+
+/**
+ * 依据关节名推断部位（含左右），供关节面板分类展示。
+ * @param {string} jointName
+ * @returns {'head'|'waist'|'leftArm'|'rightArm'|'arm'|'leftHand'|'rightHand'|'hand'|'leftLeg'|'rightLeg'|'leg'|'other'}
+ */
+export function classifyJointPart(jointName) {
+    const name = String(jointName || '');
+    const region = JOINT_REGION_PATTERNS.find(([, pattern]) => pattern.test(name))?.[0];
+    if (!region) return 'other';
+    if (region === 'head' || region === 'waist') return region;
+
+    const side = JOINT_LEFT_PATTERN.test(name) ? 'left'
+        : JOINT_RIGHT_PATTERN.test(name) ? 'right' : null;
+
+    if (region === 'arm') return side ? `${side}Arm` : 'arm';
+    if (region === 'hand') return side ? `${side}Hand` : 'hand';
+    return side ? `${side}Leg` : 'leg';
+}
+
 /**
  * JointLimits interface
  */

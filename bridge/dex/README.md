@@ -40,7 +40,9 @@ python3 dex_bridge.py --dry-run
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--ws-port` | `8081` | WebSocket 控制端口 |
+| `--ws-port` | `8081` | WebSocket 控制通道（全部消息） |
+| `--status-port` | `8082` | 只读状态通道（`0` 禁用） |
+| `--camera-port` | `8083` | 只读相机通道（`0` 禁用） |
 | `--beacon-port` | `45678` | UDP 设备发现端口 |
 | `--model` | `walker-tienkung-dex` | 机型标识（网页机型列表对应） |
 | `--name` | `TienKung Dex` | 设备显示名 |
@@ -101,6 +103,20 @@ SDK 关节与 URDF 命名不同，映射表见 [`joint_map.py`](joint_map.py)：
 
 按需订阅：网页请求某路时才创建订阅，全部取消后销毁；帧经 cv2 转 JPEG（质量 70，
 宽度上限 640）后 base64 推送，默认 10fps。
+
+## 端口与通道
+
+| 端口 | 通道 | 说明 |
+|---|---|---|
+| 8081 | 控制 | 接受全部消息，向后兼容单连接客户端 |
+| 8082 | 状态 | 只读；`enable` 等控制消息返回 `readonly` |
+| 8083 | 相机 | 只读；承载 `camera_list/subscribe/unsubscribe` 与 `camera_frame` |
+
+三个端口复用同一套 JSON 协议，`welcome.channel` 标出当前通道，`welcome` 同时携带
+`wsPort/statusPort/cameraPort/beaconPort`，便于前端直接据此建立三条连接。
+
+也可由操作站网页端一键部署：`bridge/station.js` 的"固件一键部署"会把本目录推到
+`~/.robot-motion-bridge/tienkung-dex/`，生成带 ROS `source` 顺序的 `run.sh` 并拉起。
 
 ## 协议扩展
 

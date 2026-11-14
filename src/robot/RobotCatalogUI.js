@@ -5,12 +5,15 @@
  * 按"机器人型号-末端执行器"标识各机型变体（如 walker-tienkung-dex-inspire），
  * 选中后从服务端加载对应 URDF 并交给现有模型加载流程渲染。
  */
+const CUSTOM_VALUE = '__custom_model__';
+
 export class RobotCatalogUI {
     constructor({ fileHandler }) {
         this.fileHandler = fileHandler;
         this.entries = [];
         this.currentId = null;
         this.loading = false;
+        this.folderInput = null;
     }
 
     async init() {
@@ -19,6 +22,11 @@ export class RobotCatalogUI {
 
         select.addEventListener('change', () => {
             const id = select.value;
+            if (id === CUSTOM_VALUE) {
+                this.openCustomModelPicker();
+                select.value = this.currentId || '';
+                return;
+            }
             if (id) this.select(id);
         });
 
@@ -44,6 +52,9 @@ export class RobotCatalogUI {
         }
 
         let html = '<option value="">选择机型…</option>';
+        html += `<option value="${CUSTOM_VALUE}">${escapeHtml(
+            window.i18n?.t('catalogCustom') || '＋ 新建机型 / 自定义机型…'
+        )}</option>`;
         for (const [model, list] of groups) {
             const displayName = list[0].displayName || model;
             html += `<optgroup label="${escapeHtml(displayName)}">`;
@@ -82,6 +93,51 @@ export class RobotCatalogUI {
             this.loading = false;
             if (select) select.disabled = false;
         }
+    }
+
+    /**
+     * “新建机型 / 自定义机型”：打开文件面板并弹出文件夹选择框。
+     * 选中的文件会以 drop 事件交给现有文件加载流程（与文件面板的“Load Folder”一致）。
+     */
+    openCustomModelPicker() {
+        this.openFilesPanel();
+        this.pickFolder();
+    }
+
+    openFilesPanel() {
+        const panel = document.getElementById('floating-files-panel');
+        const button = document.getElementById('toggle-files-panel');
+        if (!panel) return;
+        const visible = panel.style.display !== 'none'
+            && getComputedStyle(panel).display !== 'none'
+            && panel.style.opacity !== '0';
+        if (!visible) button?.click();
+    }
+
+    pickFolder() {
+        if (!this.folderInput) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.webkitdirectory = true;
+            input.hidden = true;
+            input.addEventListener('change', (event) => {
+                const files = Array.from(event.target.files || []);
+                if (files.length) {
+                    const dataTransfer = new DataTransfer();
+                    files.forEach((file) => dataTransfer.items.add(file));
+                    document.body.dispatchEvent(new DragEvent('drop', {
+                        bubbles: true,
+                        cancelable: true,
+                        dataTransfer
+                    }));
+                }
+                input.value = '';
+            });
+            document.body.appendChild(input);
+            this.folderInput = input;
+        }
+        this.folderInput.click();
     }
 
     setStatus(text, loading = false, isError = false) {

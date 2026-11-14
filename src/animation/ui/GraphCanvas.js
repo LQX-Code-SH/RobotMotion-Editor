@@ -176,6 +176,7 @@ export class GraphCanvas {
 
     bindEvents() {
         this.canvas.addEventListener('pointerdown', (event) => this.pointerDown(event));
+        this.canvas.addEventListener('dblclick', (event) => this.doubleClick(event));
         this.canvas.addEventListener('pointermove', (event) => this.pointerMove(event));
         this.canvas.addEventListener('pointerup', (event) => this.pointerUp(event));
         this.canvas.addEventListener('pointercancel', (event) => this.pointerUp(event));
@@ -199,6 +200,14 @@ export class GraphCanvas {
         } else {
             const hit = this.hitKeyframe(point.x, point.y);
             if (hit) {
+                if (event.altKey) {
+                    // Alt/Option + 单击：一键选中同一时间列的所有关键帧
+                    this.selection.selectKeyframes(this.store.keyframesAt(hit.keyframe.timeMs));
+                    this.drag = null;
+                    this.selectionRect = null;
+                    this.draw();
+                    return;
+                }
                 const additive = event.shiftKey;
                 const toggle = event.ctrlKey || event.metaKey;
                 if (!this.selection.hasKeyframe(hit.ref) || additive || toggle) {
@@ -220,6 +229,16 @@ export class GraphCanvas {
             }
         }
         this.canvas.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    }
+
+    doubleClick(event) {
+        const point = this.getPointer(event);
+        const hit = this.hitKeyframe(point.x, point.y);
+        if (!hit) return;
+        // 双击关键帧：选中同一时间列的所有关键帧
+        this.selection.selectKeyframes(this.store.keyframesAt(hit.keyframe.timeMs));
+        this.draw();
         event.preventDefault();
     }
 

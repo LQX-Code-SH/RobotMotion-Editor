@@ -183,6 +183,14 @@ export class TimelineCanvas {
                 } else {
                     const hit = this.hitKeyframe(point.x, point.y);
                     if (hit) {
+                        if (event.altKey) {
+                            // Alt/Option + 单击：一键选中同一时间列的所有关键帧
+                            this.selection.selectKeyframes(this.store.keyframesAt(hit.keyframe.timeMs));
+                            this.drag = null;
+                            this.selectionRect = null;
+                            this.draw();
+                            return;
+                        }
                         const additive = event.shiftKey;
                         const toggle = event.ctrlKey || event.metaKey;
                         if (!this.selection.hasKeyframe(hit.ref) || additive || toggle) {
@@ -307,6 +315,16 @@ export class TimelineCanvas {
             this.onEditMarker?.(marker);
             return;
         }
+
+        // 双击关键帧：选中同一时间列的所有关键帧（等价于 Alt/Option + 单击）
+        const hit = this.hitKeyframe(point.x, point.y);
+        if (hit) {
+            this.selection.selectKeyframes(this.store.keyframesAt(hit.keyframe.timeMs));
+            this.draw();
+            event.preventDefault();
+            return;
+        }
+
         const row = this.rowAt(point.y);
         if (!row || point.x < this.labelWidth || row.track.locked) return;
         const timeMs = this.xToTime(point.x);

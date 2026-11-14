@@ -10,6 +10,7 @@
     "station": "node station.js"
   },
   "dependencies": {
+    "ssh2": "^1.15.0",
     "ws": "^8.16.0"
   },
   "engines": {

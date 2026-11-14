@@ -196,10 +196,10 @@
             background: rgba(255, 255, 255, 0.25);
         }
 
-        /* File list floating panel */
+        /* File list floating panel：默认位于视口正中 */
         #floating-files-panel {
-            top: 80px;
-            left: 20px;
+            top: calc(50vh - 170px);
+            left: calc(50vw - 180px);
             width: 360px;
             height: 340px;
             transition: all 0.4s var(--spring);
@@ -214,6 +214,9 @@
         }
 
         #floating-files-panel.maximized {
+            top: 80px !important;
+            left: 20px !important;
+            width: calc(100vw - 40px) !important;
             height: calc(100vh - 100px) !important;
         }
 
@@ -353,13 +356,13 @@
         #top-control-bar {
             position: absolute;
             top: 20px;
-            /* 右侧让出左上角"机型选择"占位，避免重叠 */
-            left: calc(50% + clamp(70px, 8.5vw, 175px));
+            /* 机型选择已并入控制栏，居中即可 */
+            left: 50%;
             transform: translateX(-50%);
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 5px 9px;
+            gap: 8px;
+            padding: 6px 12px;
             background: var(--glass-bg);
             backdrop-filter: blur(20px) saturate(150%);
             -webkit-backdrop-filter: blur(20px) saturate(150%);
@@ -385,7 +388,7 @@
             width: 1px;
             height: 28px;
             background: var(--glass-border);
-            margin: 0 8px;
+            margin: 0 10px;
         }
 
         .control-bar-select {
@@ -801,6 +804,135 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
 
+        /* 按钮 + 下拉倒三角（关节轴按需显示） */
+        .control-split {
+            display: inline-flex;
+            align-items: stretch;
+        }
+
+        .control-split > .control-button {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .control-split-caret {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 7px;
+            min-width: 22px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: none;
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 10px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .control-split-caret:hover,
+        .control-split-caret[aria-expanded="true"] {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        [data-theme="light"] .control-split-caret {
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="light"] .control-split-caret:hover,
+        [data-theme="light"] .control-split-caret[aria-expanded="true"] {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        /* 关节轴选择浮层（挂载到 body，避免被控制栏滚动裁剪） */
+        .joint-axes-menu {
+            position: fixed;
+            z-index: 2000;
+            width: 260px;
+            max-height: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border: 0.5px solid var(--glass-border);
+            border-radius: 12px;
+            box-shadow: var(--glass-shadow);
+            color: var(--text-primary);
+        }
+
+        .joint-axes-menu[hidden] {
+            display: none;
+        }
+
+        .joint-axes-menu-head {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .joint-axes-menu-head > span {
+            flex: 1;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
+        .joint-axes-menu-head button {
+            padding: 2px 7px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid var(--glass-border);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .joint-axes-menu-head button:hover {
+            background: rgba(127, 127, 127, 0.15);
+            color: var(--text-primary);
+        }
+
+        .joint-axes-menu-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .joint-axes-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 3px 5px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .joint-axes-item:hover {
+            background: rgba(127, 127, 127, 0.14);
+        }
+
+        .joint-axes-item span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .joint-axes-empty {
+            padding: 8px 4px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
         .control-button:active {
             transform: scale(0.98);
         }
@@ -888,43 +1020,33 @@
             max-height: calc(100vh - 120px) !important;
         }
 
-        /* Robot catalog selector (top-left) */
-        .robot-catalog {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1200;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            min-height: 48px;
-            border-radius: 10px;
-            background: var(--panel-bg, rgba(30, 30, 30, 0.85));
-            color: var(--text-color, #eee);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-            backdrop-filter: blur(8px);
-            font-size: 13px;
+        /* Robot catalog selector：作为顶部控制栏的第一节，随栏一起布局，不再绝对定位 */
+        #robot-catalog {
+            flex: 0 1 auto;
+            gap: 6px;
+            min-width: 0;
         }
 
         .robot-catalog-label {
-            font-size: 13px;
-            font-weight: 700;
+            font-size: 12px;
+            font-weight: 600;
             color: var(--text-primary, #eee);
             white-space: nowrap;
         }
 
         .robot-catalog-select {
-            min-width: 260px;
-            max-width: 360px;
-            padding: 7px 12px;
-            font-size: 13px;
-            line-height: 1.4;
+            width: 220px;
+            max-width: 32vw;
+            min-width: 0;
+            padding: 6px 10px;
+            font-size: 12px;
+            line-height: 1.3;
             border-radius: 6px;
             border: 1px solid var(--border-color, #555);
             background: var(--input-bg, #1f1f1f);
             color: var(--text-color, #eee);
             cursor: pointer;
+            text-overflow: ellipsis;
         }
 
         .robot-catalog-select:disabled {
@@ -932,13 +1054,19 @@
             cursor: default;
         }
 
+        /* 加载成功时下拉框已显示机型名，状态位只在加载/报错时占空间 */
         .robot-catalog-status {
+            display: none;
             font-size: 11px;
-            opacity: 0.65;
             white-space: nowrap;
-            max-width: 220px;
+            max-width: 140px;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .robot-catalog-status.loading,
+        .robot-catalog-status.error {
+            display: inline-block;
         }
 
         .robot-catalog-status.loading {
@@ -950,57 +1078,29 @@
             opacity: 1;
         }
 
-        /* 中窄屏：机型选择移到底部，顶部菜单恢复居中，彻底避免重叠 */
         @media (max-width: 1400px) {
-            #top-control-bar {
-                left: 50%;
-            }
-
-            .robot-catalog {
-                top: auto;
-                bottom: 16px;
-                left: 12px;
-                padding: 8px 10px;
-                min-height: 0;
-            }
-
             .robot-catalog-select {
-                min-width: 210px;
-                max-width: 250px;
-                padding: 6px 10px;
+                width: 180px;
             }
+        }
 
-            .robot-catalog-status {
+        @media (max-width: 1100px) {
+            .robot-catalog-label {
                 display: none;
             }
-        }
-
-        @media (max-width: 768px) {
-            .robot-catalog {
-                bottom: 16px;
-                left: 12px;
-                padding: 4px 8px;
-            }
 
             .robot-catalog-select {
-                min-width: 170px;
-                max-width: 210px;
-                padding: 5px 8px;
-                font-size: 12px;
-            }
-
-            .robot-catalog-label {
-                font-size: 12px;
+                width: 140px;
             }
         }
 
-        /* Robot control floating panel */
+        /* Robot control floating panel（占用原文件面板的位置） */
         #floating-robot-panel {
             top: 80px;
-            right: 20px;
-            width: 320px;
-            height: 560px;
-            z-index: 1500;
+            left: 20px;
+            width: 360px;
+            height: 340px;
+            z-index: 60;
         }
 
         #floating-robot-panel.maximized {
@@ -1071,50 +1171,10 @@
             font-weight: 700;
         }
 
-        .robot-device-list {
-            max-height: 140px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color, #ccc);
-            border-radius: 4px;
-        }
-
-        .robot-device-item {
-            padding: 6px 8px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color, #eee);
-        }
-
-        .robot-device-item:last-child {
-            border-bottom: none;
-        }
-
-        .robot-device-item:hover {
-            background: var(--hover-bg, rgba(0, 0, 0, 0.05));
-        }
-
-        .robot-device-item.selected {
-            background: rgba(37, 99, 235, 0.15);
-        }
-
-        .robot-device-item.offline {
-            opacity: 0.45;
-        }
-
-        .robot-device-name {
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .robot-device-meta {
+        .robot-hint {
             font-size: 11px;
-            opacity: 0.7;
-        }
-
-        .robot-device-placeholder {
-            padding: 10px;
-            font-size: 12px;
+            line-height: 1.45;
             opacity: 0.6;
-            text-align: center;
         }
 
         .robot-connection-info {
@@ -1131,6 +1191,16 @@
 
         .robot-status-disconnected {
             opacity: 0.6;
+        }
+
+        .robot-status-connecting {
+            color: #2563eb;
+        }
+
+        .robot-status-error {
+            color: #dc2626;
+            font-weight: 600;
+            word-break: break-word;
         }
 
         .robot-status-detail {
@@ -1183,6 +1253,62 @@
 
         .robot-log-system {
             color: #16a34a;
+        }
+
+        /* 固件一键部署 */
+        .robot-deploy {
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            padding: 0 8px 8px;
+        }
+
+        .robot-deploy > summary {
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            opacity: 0.8;
+            user-select: none;
+        }
+
+        .robot-deploy[open] > summary {
+            border-bottom: 1px solid var(--border-color, #eee);
+            margin-bottom: 8px;
+        }
+
+        .robot-deploy-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .robot-deploy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .robot-field {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .robot-field > span {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .robot-field .robot-input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .robot-deploy-log {
+            height: 140px;
+            min-height: 140px;
+            max-height: 140px;
         }
 
         .help-section {
@@ -2243,6 +2369,179 @@
             border-bottom-color: rgba(0, 0, 0, 0.08);
         }
 
+        /* Joint groups（头 / 上肢 / 腰 / 下肢 / 其他） */
+        .joint-group {
+            margin-bottom: 8px;
+        }
+
+        .joint-group-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 6px 9px;
+            margin-bottom: 6px;
+            background: rgba(127, 127, 127, 0.12);
+            border: 1px solid rgba(127, 127, 127, 0.16);
+            border-radius: 9px;
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+        }
+
+        .joint-group-header:hover {
+            background: rgba(127, 127, 127, 0.18);
+        }
+
+        .joint-group-title {
+            flex: 1;
+        }
+
+        .joint-group-count {
+            font-size: 11px;
+            font-weight: 500;
+            opacity: 0.6;
+        }
+
+        .joint-group-caret {
+            font-size: 10px;
+            opacity: 0.6;
+            transition: transform 0.2s var(--spring);
+        }
+
+        .joint-group.collapsed .joint-group-caret {
+            transform: rotate(-90deg);
+        }
+
+        .joint-group.collapsed .joint-group-body {
+            display: none;
+        }
+
+        .joint-group-body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 临时关节滑块：点击关节轴箭头或对应零件时弹出 */
+        .joint-quick-panel {
+            position: fixed;
+            z-index: 2200;
+            width: 300px;
+            padding: 10px 12px 8px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border: 0.5px solid var(--glass-border);
+            border-radius: 12px;
+            box-shadow: var(--glass-shadow);
+            color: var(--text-primary);
+        }
+
+        .joint-quick-panel[hidden] {
+            display: none;
+        }
+
+        .joint-quick-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .joint-quick-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 12px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .joint-quick-close {
+            padding: 2px 5px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .joint-quick-close:hover {
+            background: rgba(127, 127, 127, 0.18);
+            color: var(--text-primary);
+        }
+
+        .joint-quick-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .joint-quick-slider {
+            flex: 1;
+            min-width: 0;
+            accent-color: var(--accent);
+        }
+
+        .joint-quick-value {
+            width: 78px;
+            padding: 3px 6px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--glass-border);
+            background: var(--input-bg, rgba(127, 127, 127, 0.12));
+            color: var(--text-primary);
+        }
+
+        .joint-quick-unit {
+            min-width: 22px;
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .joint-quick-reset {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background-color 0.15s, color 0.15s, transform 0.15s;
+        }
+
+        .joint-quick-reset:hover {
+            background: rgba(127, 127, 127, 0.18);
+            color: var(--text-primary);
+            transform: rotate(-30deg);
+        }
+
+        .joint-quick-reset:active {
+            transform: rotate(-60deg) scale(0.95);
+        }
+
+        .joint-quick-limits {
+            margin-top: 4px;
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
         .joint-control {
             margin-bottom: 3px;
             padding: 5px 8px;
@@ -3234,6 +3533,16 @@
     <div id="container">
         <div id="canvas-container">
             <div id="top-control-bar">
+                <div id="robot-catalog" class="control-bar-section control-bar-robot">
+                    <span class="robot-catalog-label" data-i18n="robotCatalogLabel">机型选择</span>
+                    <select id="robot-catalog-select" class="robot-catalog-select" disabled>
+                        <option value="">加载中…</option>
+                    </select>
+                    <span id="robot-catalog-status" class="robot-catalog-status"></span>
+                </div>
+
+                <div class="control-bar-divider"></div>
+
                 <div class="control-bar-section control-bar-views">
                     <button class="control-button active" id="show-visual" data-checked="true">
                         <span data-i18n="visual"></span>
@@ -3247,12 +3556,20 @@
                     <button class="control-button" id="show-com" data-checked="false">
                         <span data-i18n="com"></span>
                     </button>
-                    <button class="control-button" id="toggle-axes-btn" data-checked="false">
-                        <span data-i18n="axes"></span>
-                    </button>
-                    <button class="control-button" id="toggle-joint-axes-btn" data-checked="false">
-                        <span data-i18n="jointAxes"></span>
-                    </button>
+                    <div class="control-split">
+                        <button class="control-button" id="toggle-axes-btn" data-checked="false">
+                            <span data-i18n="axes"></span>
+                        </button>
+                        <button type="button" class="control-split-caret" id="link-axes-menu-btn"
+                                title="选择要显示的坐标轴" aria-haspopup="true" aria-expanded="false">▾</button>
+                    </div>
+                    <div class="control-split">
+                        <button class="control-button" id="toggle-joint-axes-btn" data-checked="false">
+                            <span data-i18n="jointAxes"></span>
+                        </button>
+                        <button type="button" class="control-split-caret" id="joint-axes-menu-btn"
+                                title="选择要显示的关节轴" aria-haspopup="true" aria-expanded="false">▾</button>
+                    </div>
                     <button class="control-button active" id="toggle-shadow" data-checked="true">
                         <span data-i18n="shadow"></span>
                     </button>
@@ -3280,7 +3597,7 @@
                 <div class="control-bar-divider"></div>
 
                 <div class="control-bar-section control-bar-panels">
-                    <button class="tool-button active" id="toggle-files-panel">
+                    <button class="tool-button" id="toggle-files-panel">
                         <span class="tool-button-text" data-i18n="files"></span>
                     </button>
                     <button class="tool-button active" id="toggle-joints-panel">
@@ -3292,7 +3609,7 @@
                     <button class="tool-button" id="toggle-model-tree">
                         <span class="tool-button-text" data-i18n="structure"></span>
                     </button>
-                    <button class="tool-button" id="toggle-robot-panel">
+                    <button class="tool-button active" id="toggle-robot-panel">
                         <span class="tool-button-text" data-i18n="robot"></span>
                     </button>
                     <button class="tool-button" id="open-editor-btn">
@@ -3326,7 +3643,7 @@
 
             <canvas id="canvas"></canvas>
 
-            <div id="floating-files-panel" class="floating-panel">
+            <div id="floating-files-panel" class="floating-panel" style="display: none;">
                 <div class="floating-panel-header">
                     <span data-i18n="fileList"></span>
                     <button class="panel-maximize-btn" data-panel-id="floating-files-panel">⛶</button>
@@ -3360,7 +3677,7 @@
                 </div>
             </div>
 
-            <div id="floating-model-tree" class="floating-panel">
+            <div id="floating-model-tree" class="floating-panel" style="display: none;">
                 <div class="floating-panel-header">
                     <span data-i18n="modelStructure"></span>
                     <button class="panel-maximize-btn" data-panel-id="floating-model-tree">⛶</button>
@@ -3394,14 +3711,6 @@
                 <div id="hover-link-mass"></div>
                 <div id="hover-link-pose"></div>
                 <div id="hover-merged-links"></div>
-            </div>
-
-            <div id="robot-catalog" class="robot-catalog">
-                <span class="robot-catalog-label" data-i18n="robotCatalogLabel">机型选择</span>
-                <select id="robot-catalog-select" class="robot-catalog-select" disabled>
-                    <option value="">加载中…</option>
-                </select>
-                <span id="robot-catalog-status" class="robot-catalog-status"></span>
             </div>
 
             <div id="floating-help-panel" class="floating-panel" style="display: none;">
@@ -3441,7 +3750,7 @@
                 </div>
             </div>
 
-            <div id="floating-robot-panel" class="floating-panel" style="display: none;">
+            <div id="floating-robot-panel" class="floating-panel">
                 <div class="floating-panel-header">
                     <span data-i18n="robotPanelTitle">真机控制</span>
                     <button class="panel-maximize-btn" data-panel-id="floating-robot-panel">⛶</button>
@@ -3449,22 +3758,15 @@
                 </div>
                 <div class="floating-panel-content robot-panel-content">
                     <div class="robot-section">
-                        <label class="robot-label">操作站网关 (station)</label>
+                        <label class="robot-label">设备地址</label>
                         <div class="robot-row">
-                            <input type="text" id="robot-station-url" class="robot-input" placeholder="http://192.168.1.100:8090" />
-                            <button id="robot-scan-btn" class="robot-btn">搜索设备</button>
-                        </div>
-                    </div>
-
-                    <div class="robot-section">
-                        <label class="robot-label">设备列表</label>
-                        <div id="robot-device-list" class="robot-device-list">
-                            <div class="robot-device-placeholder">点击"搜索设备"查找同网段机器人</div>
+                            <input type="text" id="robot-device-address" class="robot-input" placeholder="192.168.41.2" />
                         </div>
                         <div class="robot-row">
                             <button id="robot-connect-btn" class="robot-btn primary">连接</button>
                             <button id="robot-disconnect-btn" class="robot-btn">断开</button>
                         </div>
+                        <div class="robot-hint">填机器人 IP 直连（控制口 8081）；也可填操作站地址 http://主机:8090 经网关发现。</div>
                     </div>
 
                     <div class="robot-section">
@@ -3477,22 +3779,88 @@
                             <input type="checkbox" id="robot-follow-toggle" />
                             <span>视口同步（真机姿态实时映射到 3D 视口）</span>
                         </label>
-                        <div class="robot-row">
-                            <button id="robot-enable-btn" class="robot-btn primary">使能</button>
-                            <button id="robot-disable-btn" class="robot-btn">失能</button>
-                        </div>
                     </div>
 
                     <div class="robot-section">
                         <label class="robot-label">动作下发</label>
                         <div class="robot-row">
                             <button id="robot-send-pose-btn" class="robot-btn">发送当前位姿</button>
-                            <button id="robot-play-clip-btn" class="robot-btn primary">播放到真机</button>
+                            <button id="robot-home-btn" class="robot-btn">真机回零</button>
                         </div>
                         <div class="robot-row">
                             <button id="robot-stop-btn" class="robot-btn">停止</button>
                             <button id="robot-estop-btn" class="robot-btn danger">⚠ 急停</button>
                         </div>
+                    </div>
+
+                    <div class="robot-section">
+                        <details id="robot-deploy" class="robot-deploy">
+                            <summary>固件一键部署（SSH）</summary>
+                            <div class="robot-deploy-body">
+                                <div class="robot-deploy-grid">
+                                    <label class="robot-field">
+                                        <span>机器人 IP</span>
+                                        <input type="text" id="robot-deploy-host" class="robot-input" placeholder="192.168.41.2" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>SSH 端口</span>
+                                        <input type="number" id="robot-deploy-ssh-port" class="robot-input" value="22" min="1" max="65535" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>用户名</span>
+                                        <input type="text" id="robot-deploy-username" class="robot-input" placeholder="nvidia" autocomplete="username" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>登录密码</span>
+                                        <input type="password" id="robot-deploy-password" class="robot-input" autocomplete="current-password" />
+                                    </label>
+                                </div>
+
+                                <label class="robot-field">
+                                    <span>设备固件类型</span>
+                                    <select id="robot-deploy-firmware" class="robot-input">
+                                        <option value="">加载中…</option>
+                                    </select>
+                                </label>
+
+                                <label class="robot-field" id="robot-deploy-model-field" style="display: none;">
+                                    <span>机型</span>
+                                    <select id="robot-deploy-model" class="robot-input"></select>
+                                </label>
+
+                                <div class="robot-deploy-grid robot-deploy-ports">
+                                    <label class="robot-field">
+                                        <span>控制端口</span>
+                                        <input type="number" id="robot-deploy-port-control" class="robot-input" value="8081" min="1" max="65535" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>状态端口</span>
+                                        <input type="number" id="robot-deploy-port-status" class="robot-input" value="8082" min="0" max="65535" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>相机端口</span>
+                                        <input type="number" id="robot-deploy-port-camera" class="robot-input" value="8083" min="0" max="65535" />
+                                    </label>
+                                    <label class="robot-field">
+                                        <span>发现端口 (UDP)</span>
+                                        <input type="number" id="robot-deploy-port-beacon" class="robot-input" value="45678" min="1" max="65535" />
+                                    </label>
+                                </div>
+
+                                <div class="robot-row">
+                                    <button id="robot-deploy-preflight-btn" class="robot-btn">预检</button>
+                                    <button id="robot-deploy-install-btn" class="robot-btn primary">一键安装</button>
+                                </div>
+                                <div class="robot-row">
+                                    <button id="robot-deploy-start-btn" class="robot-btn">启动</button>
+                                    <button id="robot-deploy-stop-btn" class="robot-btn">停止</button>
+                                    <button id="robot-deploy-status-btn" class="robot-btn">状态</button>
+                                    <button id="robot-deploy-logs-btn" class="robot-btn">日志</button>
+                                </div>
+
+                                <div id="robot-deploy-log" class="robot-log robot-deploy-log"></div>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="robot-section">

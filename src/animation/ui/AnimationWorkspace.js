@@ -16,6 +16,8 @@ export class AnimationWorkspace {
         this.model = null;
         this.modelName = 'Robot';
         this.visible = false;
+        this.playToRobotHandler = null;   // (clip) => Promise，由 main 注入真机连接模块
+        this.robotAvailable = false;      // 真机是否已连接
         this.autoKey = true;
         this.viewMode = 'timeline';
         this.clipboard = null;
@@ -94,6 +96,7 @@ export class AnimationWorkspace {
                     <button type="button" class="animation-icon-button animation-play-button" data-action="play" title="Play/Pause (Space)">▶</button>
                     <button type="button" class="animation-icon-button animation-record-button" data-action="record" title="Record armed or selected tracks">●</button>
                 </div>
+                <button type="button" class="animation-button animation-robot-action" data-action="play-to-robot" data-i18n="playToRobot" title="Play on the real robot" disabled>Play on Robot</button>
                 <div class="animation-segmented animation-view-switch">
                     <button type="button" class="active" data-action="show-timeline" data-i18n="dopeSheet">Dope Sheet</button>
                     <button type="button" data-action="show-graph" data-i18n="graphView">Graph</button>
@@ -184,7 +187,7 @@ export class AnimationWorkspace {
                 </label>
                 <label class="animation-pose-field" title="Saved pose"><span>Pose</span><select class="animation-select" data-action="pose"><option value="">—</option></select></label>
                 <button type="button" class="animation-icon-button" data-action="delete-pose" title="Delete saved pose">⌫</button>
-                <span class="animation-selection-help">Shift adds · Ctrl/Cmd toggles · red track dot arms recording</span>
+                <span class="animation-selection-help">Shift adds · Ctrl/Cmd toggles · Alt/Option-click or double-click selects the whole column · red track dot arms recording</span>
             </div>
             <div class="animation-status" hidden></div>
             <div class="animation-guide" hidden>
@@ -247,6 +250,7 @@ export class AnimationWorkspace {
         this.clipSelect = this.root.querySelector('[data-action="clip"]');
         this.playButton = this.root.querySelector('[data-action="play"]');
         this.recordButton = this.root.querySelector('[data-action="record"]');
+        this.playToRobotButton = this.root.querySelector('[data-action="play-to-robot"]');
         this.timeInput = this.root.querySelector('[data-action="time"]');
         this.durationInput = this.root.querySelector('[data-action="duration"]');
         this.loopInput = this.root.querySelector('[data-action="loop"]');
@@ -295,6 +299,7 @@ export class AnimationWorkspace {
         this.onAction('close', () => this.close());
         this.onAction('play', () => this.playback.toggle());
         this.onAction('stop', () => this.playback.stop());
+        this.onAction('play-to-robot', () => this.playToRobot());
         this.onAction('record', () => this.toggleRecording());
         this.onAction('undo', () => this.store.undo());
         this.onAction('redo', () => this.store.redo());
@@ -746,6 +751,35 @@ export class AnimationWorkspace {
         requestAnimationFrame(() => this.fitTime());
     }
 
+    /** 由 main 注入：把当前 clip 下发到真机 */
+    setPlayToRobotHandler(handler) {
+        this.playToRobotHandler = typeof handler === 'function' ? handler : null;
+    }
+
+    /** 真机连接状态变化时更新按钮可用性 */
+    setRobotAvailable(available) {
+        this.robotAvailable = Boolean(available);
+        if (!this.playToRobotButton) return;
+        this.playToRobotButton.disabled = !this.robotAvailable;
+        this.playToRobotButton.title = this.robotAvailable
+            ? this.translate('playToRobotTitle')
+            : this.translate('playToRobotOffline');
+    }
+
+    async playToRobot() {
+        const clip = this.store.activeClip;
+        if (!clip) {
+            this.showToast(this.translate('playToRobotNoClip'));
+            return;
+        }
+        if (!this.robotAvailable || !this.playToRobotHandler) {
+            this.showToast(this.translate('playToRobotOffline'));
+            return;
+        }
+        this.showToast(this.translate('playToRobotRunning'));
+        await this.playToRobotHandler(clip);
+    }
+
     storageKey() {
         return `robot-viewer-animation:${this.modelName}`;
     }
@@ -840,6 +874,7 @@ export class AnimationWorkspace {
     refreshLanguage() {
         window.i18n?.updatePageLanguage();
         this.syncAllControls();
+        this.setRobotAvailable(this.robotAvailable);
     }
 
     translate(key, replacements = {}) {

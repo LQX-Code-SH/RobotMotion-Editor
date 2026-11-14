@@ -1,5 +1,6 @@
 /* Keep the canvas visible and every control reachable on smaller screens. */
-@media (max-width: 1100px) {
+/* 机型选择并入控制栏后，栏更宽：提前允许横向滚动，避免溢出遮挡 */
+@media (max-width: 1280px) {
     #top-control-bar {
         overflow-x: auto;
         scrollbar-width: thin;
@@ -59,6 +60,18 @@
         flex: 1 1 0;
     }
 
+    #top-control-bar .control-bar-robot {
+        order: -1;
+        flex: 1 1 100%;
+    }
+
+    #top-control-bar .robot-catalog-select {
+        width: 100%;
+        max-width: none;
+        min-height: 40px;
+        padding: 0 10px;
+    }
+
     #top-control-bar .control-bar-settings {
         order: 1;
         flex: 0 0 auto;
@@ -97,6 +110,12 @@
         touch-action: manipulation;
     }
 
+    /* 分段按钮的倒三角保持窄宽度 */
+    #top-control-bar .control-split-caret {
+        min-width: 24px;
+        padding: 0 6px;
+    }
+
     #top-control-bar #up-select {
         width: 60px;
         padding-right: 22px;
@@ -114,6 +133,7 @@
     }
 
     /* Override desktop coordinates, including user drag/resize positions. */
+    #floating-robot-panel,
     #floating-files-panel,
     #floating-joints-panel,
     #floating-model-tree,
@@ -136,6 +156,7 @@
         z-index: 90 !important;
     }
 
+    #floating-robot-panel.maximized,
     #floating-files-panel.maximized,
     #floating-joints-panel.maximized,
     #floating-model-tree.maximized,
@@ -372,6 +393,7 @@
 }
 
 @media (max-width: 1023px) and (max-height: 500px) {
+    #floating-robot-panel,
     #floating-files-panel,
     #floating-joints-panel,
     #floating-model-tree,
@@ -383,6 +405,7 @@
         height: auto !important;
     }
 
+    #floating-robot-panel.maximized,
     #floating-files-panel.maximized,
     #floating-joints-panel.maximized,
     #floating-model-tree.maximized,

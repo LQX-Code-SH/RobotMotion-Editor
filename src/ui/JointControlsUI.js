@@ -1,10 +1,25 @@
-import { isScalarJoint } from '../models/UnifiedRobotModel.js';
+import { classifyJointPart, isScalarJoint, JOINT_PARTS } from '../models/UnifiedRobotModel.js';
 /**
  * JointControlsUI - Joint control UI module
  * Responsible for creating and managing joint control sliders and input fields
  */
 import { ModelLoaderFactory } from '../loaders/ModelLoaderFactory.js';
 import { XMLUpdater } from '../utils/XMLUpdater.js';
+
+const JOINT_GROUP_LABEL_KEYS = {
+    head: 'jointPartHead',
+    leftArm: 'jointPartLeftArm',
+    rightArm: 'jointPartRightArm',
+    arm: 'jointPartArm',
+    leftHand: 'jointPartLeftHand',
+    rightHand: 'jointPartRightHand',
+    hand: 'jointPartHand',
+    waist: 'jointPartWaist',
+    leftLeg: 'jointPartLeftLeg',
+    rightLeg: 'jointPartRightLeg',
+    leg: 'jointPartLeg',
+    other: 'jointPartOther'
+};
 
 export class JointControlsUI {
     constructor(sceneManager) {
@@ -226,11 +241,63 @@ export class JointControlsUI {
 
         const orderedJoints = Array.from(model.joints.values());
         if (model.constraints?.size) orderedJoints.sort((a, b) => Number(!!b.actuated) - Number(!!a.actuated));
+
+        // 按 头 / 左右臂 / 左右手 / 腰 / 左右腿 / 其他 分组，组内保持原有顺序
+        const grouped = new Map();
         orderedJoints.forEach((joint) => {
             if (!isScalarJoint(joint)) return;
-            const control = this.createJointControl(joint, model);
-            container.appendChild(control);
+            const group = classifyJointPart(joint.name);
+            if (!grouped.has(group)) grouped.set(group, []);
+            grouped.get(group).push(joint);
         });
+
+        JOINT_PARTS.forEach((group) => {
+            const joints = grouped.get(group);
+            if (!joints?.length) return;
+            container.appendChild(this.createJointGroupSection(group, joints, model));
+        });
+    }
+
+    /**
+     * 创建分组折叠区（头部 / 上肢 / 腰 / 下肢 / 其他）
+     */
+    createJointGroupSection(group, joints, model) {
+        const section = document.createElement('div');
+        section.className = 'joint-group';
+        section.dataset.jointGroup = group;
+
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'joint-group-header';
+        header.setAttribute('aria-expanded', 'true');
+
+        const labelKey = JOINT_GROUP_LABEL_KEYS[group] || JOINT_GROUP_LABEL_KEYS.other;
+        const title = document.createElement('span');
+        title.className = 'joint-group-title';
+        title.setAttribute('data-i18n', labelKey);
+        title.textContent = window.i18n.t(labelKey);
+
+        const count = document.createElement('span');
+        count.className = 'joint-group-count';
+        count.textContent = String(joints.length);
+
+        const caret = document.createElement('span');
+        caret.className = 'joint-group-caret';
+        caret.textContent = '▾';
+
+        header.append(title, count, caret);
+
+        const body = document.createElement('div');
+        body.className = 'joint-group-body';
+        joints.forEach((joint) => body.appendChild(this.createJointControl(joint, model)));
+
+        header.addEventListener('click', () => {
+            const collapsed = section.classList.toggle('collapsed');
+            header.setAttribute('aria-expanded', String(!collapsed));
+        });
+
+        section.append(header, body);
+        return section;
     }
 
     /**

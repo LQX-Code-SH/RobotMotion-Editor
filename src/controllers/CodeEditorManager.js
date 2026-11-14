@@ -115,9 +115,7 @@ export class CodeEditorManager {
 
         if (!openEditorBtn || !editorPanel) return;
 
-        // Show editor by default
-        editorPanel.classList.add('visible');
-        openEditorBtn.classList.add('active');
+        // 编辑面板默认关闭，由用户点击“编辑”按钮打开
 
         // Open/close editor
         openEditorBtn.addEventListener('click', async () => {

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "defaults": {
+    "ports": { "control": 8081, "status": 8082, "camera": 8083, "beacon": 45678 },
+    "remoteRoot": ".robot-motion-bridge"
+  },
+  "firmwares": [
+    {
+      "id": "tienkung-dex",
+      "label": "天工 DEX（ROS 2 / Python）",
+      "description": "真机桥接：ROS 2 话题控制、灵巧手、4 路相机推流",
+      "runtime": "python",
+      "model": "walker-tienkung-dex",
+      "supportsCamera": true,
+      "files": [
+        { "from": "dex", "to": "dex" }
+      ],
+      "entry": "dex/dex_bridge.py",
+      "args": { "hand": "brainco" },
+      "rosSetup": [
+        "/opt/ros/jazzy/setup.bash",
+        "/opt/humanoid/install/setup.bash",
+        "$HOME/xos/setup.bash"
+      ],
+      "pythonDeps": ["websockets>=10.0"]
+    },
+    {
+      "id": "tienkung-dex-dryrun",
+      "label": "天工 DEX 协议联调（dry-run）",
+      "description": "不连接 ROS，仅验证端口、协议与网页联动",
+      "runtime": "python",
+      "model": "walker-tienkung-dex",
+      "supportsCamera": false,
+      "files": [
+        { "from": "dex", "to": "dex" }
+      ],
+      "entry": "dex/dex_bridge.py",
+      "args": { "hand": "none", "dry-run": true },
+      "pythonDeps": ["websockets>=10.0"]
+    },
+    {
+      "id": "walker-node",
+      "label": "优必选 Walker（Node 桥接）",
+      "description": "Node 版桥接，适配 Walker S2/C1/TienKung Pro；无相机推流",
+      "runtime": "node",
+      "model": "walker-s2",
+      "models": ["walker-s2", "walker-c1", "walker-tienkung-pro"],
+      "supportsCamera": false,
+      "files": [
+        { "from": "robot-server.js", "to": "bridge/robot-server.js" },
+        { "from": "adapters", "to": "bridge/adapters" },
+        { "from": "deploy/node-package.json", "to": "bridge/package.json" },
+        { "from": "../robot/{{model}}/profile.json", "to": "robot/{{model}}/profile.json" }
+      ],
+      "entry": "bridge/robot-server.js",
+      "args": { "adapter": "mock" },
+      "nodeDeps": ["ws"]
+    }
+  ]
+}

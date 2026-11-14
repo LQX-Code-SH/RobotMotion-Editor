@@ -212,6 +212,12 @@
     background: #409cff;
 }
 
+.animation-robot-action {
+    height: 25px;
+    padding: 0 10px;
+    white-space: nowrap;
+}
+
 [data-theme="light"] .animation-button:hover,
 [data-theme="light"] .animation-icon-button:hover,
 [data-theme="light"] .animation-segmented button:hover {

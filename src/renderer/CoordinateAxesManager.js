@@ -10,6 +10,11 @@ export class CoordinateAxesManager {
         this.jointAxesHelpers = new Map();
         this.showAxesEnabled = false;
         this.showJointAxesEnabled = false;
+        // 关节轴 / 坐标轴按需显示：未初始化时视为全选，保持旧的“一键全显示”行为
+        this.jointAxisSelection = new Set();
+        this.jointAxisSelectionReady = false;
+        this.linkAxisSelection = new Set();
+        this.linkAxisSelectionReady = false;
     }
 
     /**
@@ -237,7 +242,7 @@ export class CoordinateAxesManager {
         this.linkAxesHelpers.set(linkName, axesGroup);
 
         // Decide whether to show based on current setting
-        axesGroup.visible = this.showAxesEnabled;
+        axesGroup.visible = this.showAxesEnabled && this.isLinkAxesSelected(linkName);
 
         return axesGroup;
     }
@@ -256,6 +261,7 @@ export class CoordinateAxesManager {
         const axisGroup = new THREE.Group();
         axisGroup.name = `jointAxis_${jointName}`;
         axisGroup.userData.isVisualization = true; // Not robot geometry (see VisualizationManager)
+        axisGroup.userData.jointAxisName = jointName; // 供拖拽控制把箭头映射回对应关节
 
         // Get joint rotation axis direction (local coordinate system)
         let localAxisDirection = new THREE.Vector3(0, 0, 1); // Default Z axis
@@ -319,7 +325,7 @@ export class CoordinateAxesManager {
         });
 
         // Decide whether to add to scene based on current setting
-        if (this.showJointAxesEnabled) {
+        if (this.showJointAxesEnabled && this.isJointAxisSelected(jointName)) {
             jointObject.add(axisGroup);
             this.jointAxesHelpers.get(jointName).isAttached = true;
         }
@@ -393,55 +399,159 @@ export class CoordinateAxesManager {
         return group;
     }
 
+    /** 当前模型可显示的坐标轴名称（按 link 创建顺序） */
+    getLinkAxesNames() {
+        return [...this.linkAxesHelpers.keys()];
+    }
+
+    /** 未做任何勾选时默认全选，保持旧行为 */
+    isLinkAxesSelected(linkName) {
+        if (!this.linkAxisSelectionReady) return true;
+        return this.linkAxisSelection.has(linkName);
+    }
+
+    getSelectedLinkAxesNames() {
+        return this.getLinkAxesNames().filter((name) => this.isLinkAxesSelected(name));
+    }
+
+    /**
+     * 按上次勾选恢复显示坐标轴（从未勾选过则全选）。
+     */
+    showSelectedLinkAxes() {
+        this.showAxesEnabled = true;
+        if (!this.linkAxisSelectionReady || !this.linkAxisSelection.size) {
+            this.linkAxisSelectionReady = true;
+            this.linkAxisSelection = new Set(this.linkAxesHelpers.keys());
+        }
+        this.applyLinkAxesSelection();
+    }
+
     /**
      * Show all link axes
      */
     showAllAxes() {
         this.showAxesEnabled = true;
-
-        // Show all link axes
-        this.linkAxesHelpers.forEach((axes) => {
-            axes.visible = true;
-        });    }
+        this.linkAxisSelectionReady = true;
+        this.linkAxisSelection = new Set(this.linkAxesHelpers.keys());
+        this.applyLinkAxesSelection();
+    }
 
     /**
-     * Hide all link axes
+     * Hide all link axes（保留勾选集合）
      */
     hideAllAxes() {
         this.showAxesEnabled = false;
+        this.applyLinkAxesSelection();
+    }
 
-        // Hide all link axes
-        this.linkAxesHelpers.forEach((axes) => {
-            axes.visible = false;
-        });    }
+    /** 单个 link 坐标轴勾选状态变化 */
+    setLinkAxesVisible(linkName, visible) {
+        if (!this.linkAxisSelectionReady) {
+            this.linkAxisSelectionReady = true;
+            this.linkAxisSelection = new Set(this.linkAxesHelpers.keys());
+        }
+        if (visible) this.linkAxisSelection.add(linkName);
+        else this.linkAxisSelection.delete(linkName);
+        this.showAxesEnabled = this.linkAxisSelection.size > 0;
+        this.applyLinkAxesSelection();
+    }
+
+    /** 全选 / 全不选 */
+    setAllLinkAxesVisible(visible) {
+        this.linkAxisSelectionReady = true;
+        if (visible) this.linkAxisSelection = new Set(this.linkAxesHelpers.keys());
+        else this.linkAxisSelection.clear();
+        this.showAxesEnabled = this.linkAxisSelection.size > 0;
+        this.applyLinkAxesSelection();
+    }
+
+    /** 按当前勾选集合同步场景中的坐标轴 */
+    applyLinkAxesSelection() {
+        this.linkAxesHelpers.forEach((axes, linkName) => {
+            axes.visible = this.showAxesEnabled && this.isLinkAxesSelected(linkName);
+        });
+    }
+
+    /** 当前模型可显示的关节轴名称（按关节创建顺序） */
+    getJointAxisNames() {
+        return [...this.jointAxesHelpers.keys()];
+    }
+
+    /** 未做任何勾选时默认全选，保持旧行为 */
+    isJointAxisSelected(jointName) {
+        if (!this.jointAxisSelectionReady) return true;
+        return this.jointAxisSelection.has(jointName);
+    }
+
+    getSelectedJointAxisNames() {
+        return this.getJointAxisNames().filter((name) => this.isJointAxisSelected(name));
+    }
+
+    /**
+     * 按上次勾选恢复显示关节轴（从未勾选过则全选）。
+     * 工具栏主按钮使用该方法，关闭再打开不会丢失选择。
+     */
+    showSelectedJointAxes() {
+        this.showJointAxesEnabled = true;
+        if (!this.jointAxisSelectionReady || !this.jointAxisSelection.size) {
+            this.jointAxisSelectionReady = true;
+            this.jointAxisSelection = new Set(this.jointAxesHelpers.keys());
+        }
+        this.applyJointAxisSelection();
+    }
 
     /**
      * Show all joint axes
      */
     showAllJointAxes() {
         this.showJointAxesEnabled = true;
-
-        // Show all joint axes (add to scene)
-        this.jointAxesHelpers.forEach((axisInfo, jointName) => {
-            if (!axisInfo.isAttached && axisInfo.parent) {
-                axisInfo.parent.add(axisInfo.mesh);
-                axisInfo.isAttached = true;
-            }
-        });    }
+        this.jointAxisSelectionReady = true;
+        this.jointAxisSelection = new Set(this.jointAxesHelpers.keys());
+        this.applyJointAxisSelection();
+    }
 
     /**
-     * Hide all joint axes
+     * Hide all joint axes（保留勾选集合，下次打开仍按选择显示）
      */
     hideAllJointAxes() {
         this.showJointAxesEnabled = false;
+        this.applyJointAxisSelection();
+    }
 
-        // Hide all joint axes (remove from scene)
+    /** 单个关节轴勾选状态变化（来自下拉列表） */
+    setJointAxisVisible(jointName, visible) {
+        if (!this.jointAxisSelectionReady) {
+            this.jointAxisSelectionReady = true;
+            this.jointAxisSelection = new Set(this.jointAxesHelpers.keys());
+        }
+        if (visible) this.jointAxisSelection.add(jointName);
+        else this.jointAxisSelection.delete(jointName);
+        this.showJointAxesEnabled = this.jointAxisSelection.size > 0;
+        this.applyJointAxisSelection();
+    }
+
+    /** 全选 / 全不选（来自下拉列表） */
+    setAllJointAxesVisible(visible) {
+        this.jointAxisSelectionReady = true;
+        if (visible) this.jointAxisSelection = new Set(this.jointAxesHelpers.keys());
+        else this.jointAxisSelection.clear();
+        this.showJointAxesEnabled = this.jointAxisSelection.size > 0;
+        this.applyJointAxisSelection();
+    }
+
+    /** 按当前勾选集合同步场景中的关节轴 */
+    applyJointAxisSelection() {
         this.jointAxesHelpers.forEach((axisInfo, jointName) => {
-            if (axisInfo.isAttached && axisInfo.parent) {
+            const shouldShow = this.showJointAxesEnabled && this.isJointAxisSelected(jointName);
+            if (shouldShow && !axisInfo.isAttached && axisInfo.parent) {
+                axisInfo.parent.add(axisInfo.mesh);
+                axisInfo.isAttached = true;
+            } else if (!shouldShow && axisInfo.isAttached && axisInfo.parent) {
                 axisInfo.parent.remove(axisInfo.mesh);
                 axisInfo.isAttached = false;
             }
-        });    }
+        });
+    }
 
     /**
      * Temporarily show only specified joint axis (for slider drag/model drag)
@@ -470,23 +580,8 @@ export class CoordinateAxesManager {
      * Restore all joint axes display (called after slider drag ends)
      */
     restoreAllJointAxes() {
-        // Hide all joint axes
-        this.jointAxesHelpers.forEach((axisInfo, jointName) => {
-            if (axisInfo.isAttached && axisInfo.parent) {
-                axisInfo.parent.remove(axisInfo.mesh);
-                axisInfo.isAttached = false;
-            }
-        });
-
-        // If joint axes switch is on, show all axes
-        if (this.showJointAxesEnabled) {
-            this.jointAxesHelpers.forEach((axisInfo, jointName) => {
-                if (!axisInfo.isAttached && axisInfo.parent) {
-                    axisInfo.parent.add(axisInfo.mesh);
-                    axisInfo.isAttached = true;
-                }
-            });
-        }
+        // 按当前勾选集合恢复显示（而不是无脑全显）
+        this.applyJointAxisSelection();
     }
 
     /**
@@ -524,6 +619,8 @@ export class CoordinateAxesManager {
             }
         });
         this.linkAxesHelpers.clear();
+        this.linkAxisSelection.clear();
+        this.linkAxisSelectionReady = false;
     }
 
     /**
@@ -536,6 +633,8 @@ export class CoordinateAxesManager {
             }
         });
         this.jointAxesHelpers.clear();
+        this.jointAxisSelection.clear();
+        this.jointAxisSelectionReady = false;
     }
 
     /**

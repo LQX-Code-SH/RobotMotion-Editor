@@ -4,6 +4,7 @@ export class MobileLayout {
         this.animationWorkspace = animationWorkspace;
         this.media = window.matchMedia('(max-width: 1023px)');
         this.entries = [
+            ['floating-robot-panel', 'toggle-robot-panel'],
             ['floating-files-panel', 'toggle-files-panel'],
             ['floating-joints-panel', 'toggle-joints-panel'],
             ['floating-model-tree', 'toggle-model-tree'],
