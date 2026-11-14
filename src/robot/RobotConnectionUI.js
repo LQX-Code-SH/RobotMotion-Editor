@@ -1,5 +1,6 @@
 import { RobotBridgeClient, scanDevices } from './RobotBridgeClient.js';
 import { evaluateClip } from '../animation/core/BezierEvaluator.js';
+import { filterSyncPose, hasPoseChanged, SYNC_SEND_INTERVAL_MS } from './robotSync.js';
 
 /**
  * 真机控制模块：按设备地址连接、关节状态同步、位姿/回零下发、
@@ -19,16 +20,31 @@ export class RobotConnectionUI {
      * @param {object} deps.animationWorkspace 动画工作区（clip 数据源）
      * @param {object} deps.sceneManager 场景管理器
      */
-    constructor({ poseController, animationWorkspace, sceneManager }) {
+    constructor({
+        poseController,
+        animationWorkspace,
+        sceneManager,
+        endEffectorIKControls = null,
+        robotGhost = null
+    }) {
         this.poseController = poseController;
         this.animationWorkspace = animationWorkspace;
         this.sceneManager = sceneManager;
+        this.endEffectorIKControls = endEffectorIKControls;
+        this.robotGhost = robotGhost;
+        this.ghostVisible = true;
 
         this.client = new RobotBridgeClient();
         this.device = null;              // 当前连接的设备档案
         this.state = 'idle';             // idle | connecting | connected | error
         this.stateMessage = '';          // 失败原因等状态说明
-        this.followEnabled = false;      // 真机状态 -> 视口同步
+        this.lastJointStates = null;     // 最近一帧真机关节状态（一次性读取 / 幽灵层）
+        this.syncControlEnabled = false; // 视口操作 -> 真机同步控制
+        this._syncTimer = null;
+        this._lastSentPose = null;
+        this._syncSuspended = false;     // 轨迹执行期间暂停下发
+        this._syncRejectedAt = 0;
+        this._unsubscribePose = null;
         this.logLines = [];
         this.maxLogLines = 200;
 
@@ -39,6 +55,7 @@ export class RobotConnectionUI {
 
     init() {
         this._bindPanel();
+        this._unsubscribePose = this.poseController?.subscribe?.((event) => this._handlePoseEvent(event));
         this.appendLog('system', '真机控制模块就绪。填写设备地址后点“连接”。');
 
         const input = document.getElementById('robot-device-address');
@@ -62,14 +79,25 @@ export class RobotConnectionUI {
         const $ = (id) => document.getElementById(id);
         $('robot-connect-btn')?.addEventListener('click', () => this.connect());
         $('robot-disconnect-btn')?.addEventListener('click', () => this.disconnect());
-        $('robot-follow-toggle')?.addEventListener('change', (e) => {
-            this.followEnabled = e.target.checked;
-            this.appendLog('system', this.followEnabled
-                ? '视口同步已开启：真机状态将实时映射到 3D 视口。'
-                : '视口同步已关闭。');
+
+        $('robot-sync-control-toggle')?.addEventListener('change', (e) => {
+            this.setSyncControl(e.target.checked);
         });
+        $('robot-keyboard-jog-toggle')?.addEventListener('change', (e) => {
+            this.setKeyboardJog(e.target.checked);
+        });
+        $('robot-ghost-toggle')?.addEventListener('change', (e) => {
+            this.setGhostVisible(e.target.checked);
+        });
+        if (this.endEffectorIKControls) {
+            this.endEffectorIKControls.onKeyboardStateChange = (enabled) => {
+                const toggle = document.getElementById('robot-keyboard-jog-toggle');
+                if (toggle) toggle.checked = Boolean(enabled);
+            };
+        }
         $('robot-send-pose-btn')?.addEventListener('click', () => this.sendCurrentPose());
         $('robot-home-btn')?.addEventListener('click', () => this.homeRobot());
+        $('robot-read-pose-btn')?.addEventListener('click', () => this.syncPoseFromRobot());
         $('robot-stop-btn')?.addEventListener('click', () => this.stopRobot());
         $('robot-estop-btn')?.addEventListener('click', () => this.emergencyStop());
 
@@ -81,6 +109,164 @@ export class RobotConnectionUI {
         addressInput?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this.connect();
         });
+    }
+
+    // ---------- 姿态同步 ----------
+
+    /** 一次性把真机当前姿态读进 3D 视口（不写关键帧）。 */
+    syncPoseFromRobot() {
+        if (!this._requireConnected()) {
+            this._updateReadPoseButton();
+            return;
+        }
+        if (this.syncControlEnabled) {
+            this.appendLog('error', '请先关闭「真机同步控制」，再读取真机姿态。');
+            return;
+        }
+        const states = this.lastJointStates;
+        if (!states || !Object.keys(states).length) {
+            this.appendLog('error', '尚未收到真机遥测，无法读取姿态。');
+            return;
+        }
+
+        const pose = {};
+        for (const [name, state] of Object.entries(states)) {
+            if (typeof state?.position === 'number') pose[name] = state.position;
+        }
+        if (!Object.keys(pose).length) {
+            this.appendLog('error', '真机遥测中没有可用的关节位置。');
+            return;
+        }
+
+        this.poseController.applyPose(pose, { source: 'robot' });
+        this.robotGhost?.setPose(states);
+        this.appendLog('system', `已读取真机姿态（${Object.keys(pose).length} 关节）到视口。`);
+    }
+
+    /** 「读取真机姿态」只在已连接且未开启流式同步时可用。 */
+    _updateReadPoseButton() {
+        const button = document.getElementById('robot-read-pose-btn');
+        if (!button) return;
+        const connected = Boolean(this.client.connected && this.device);
+        const enabled = connected && !this.syncControlEnabled;
+        button.disabled = !enabled;
+        button.title = !connected
+            ? '尚未连接机器人'
+            : this.syncControlEnabled
+                ? '请先关闭「真机同步控制」'
+                : '把真机当前姿态读取到 3D 视口';
+    }
+
+    /**
+     * 视口操作 -> 真机同步控制。
+     * 开启后视口里拖动关节 / 末端 IK 会按约 12.5Hz 节流下发 follow 目标。
+     */
+    setSyncControl(enabled, { silent = false } = {}) {
+        const next = Boolean(enabled);
+        const toggle = document.getElementById('robot-sync-control-toggle');
+
+        if (next && (!this.client.connected || !this.device)) {
+            if (toggle) toggle.checked = false;
+            this.appendLog('error', '尚未连接机器人，无法开启真机同步控制。');
+            return;
+        }
+        if (next === this.syncControlEnabled) {
+            if (toggle) toggle.checked = next;
+            return;
+        }
+
+        this.syncControlEnabled = next;
+        if (toggle) toggle.checked = next;
+
+        if (next) {
+            this._lastSentPose = null;
+            this._syncSuspended = false;
+            Promise.resolve(this.client.setMode?.('follow')).catch(() => {});
+            if (!silent) {
+                this.appendLog('warning', '真机同步控制已开启：视口操作会实时下发到真机，请确认机器人周围无人。');
+            }
+        } else {
+            this._lastSentPose = null;
+            if (this._syncTimer) {
+                clearTimeout(this._syncTimer);
+                this._syncTimer = null;
+            }
+            if (!silent) this.appendLog('system', '真机同步控制已关闭。');
+        }
+        this._updateReadPoseButton();
+    }
+
+    /** 真机姿态幽灵层显示开关。 */
+    setGhostVisible(visible) {
+        this.ghostVisible = Boolean(visible);
+        const toggle = document.getElementById('robot-ghost-toggle');
+        if (toggle) toggle.checked = this.ghostVisible;
+        this.robotGhost?.setVisible(this.ghostVisible);
+    }
+
+    /** 键盘 jog：WASD/QE 平移、1-6 旋转，末端 IK 求解后走同一 PoseController 路径。 */
+    setKeyboardJog(enabled) {
+        const toggle = document.getElementById('robot-keyboard-jog-toggle');
+        const ik = this.endEffectorIKControls;
+
+        if (enabled) {
+            if (!ik) {
+                if (toggle) toggle.checked = false;
+                this.appendLog('error', '末端控制模块不可用，无法开启键盘控制。');
+                return;
+            }
+            if (!ik.model || !ik.chains.length) {
+                if (toggle) toggle.checked = false;
+                this.appendLog('error', '请先加载机器人模型再开启键盘控制。');
+                return;
+            }
+            ik.setKeyboardEnabled(true);
+            this.appendLog('system', '键盘控制已开启：W/S 前后、A/D 左右、Q/E 升降、1-6 旋转。');
+        } else {
+            ik?.setKeyboardEnabled(false);
+            this.appendLog('system', '键盘控制已关闭。');
+        }
+    }
+
+    /** 视口关节变化（用户拖动 / 末端 IK）→ 节流下发。 */
+    _handlePoseEvent(event) {
+        if (!this.syncControlEnabled || this._syncSuspended) return;
+        if (event?.type !== 'jointChanged') return;
+        if (!['user', 'viewport'].includes(event.source)) return;
+        this._scheduleSyncSend();
+    }
+
+    _scheduleSyncSend() {
+        if (this._syncTimer) return;
+        this._syncTimer = setTimeout(() => {
+            this._syncTimer = null;
+            this._flushSyncPose();
+        }, SYNC_SEND_INTERVAL_MS);
+    }
+
+    async _flushSyncPose() {
+        if (!this.syncControlEnabled || this._syncSuspended) return;
+        if (!this.client.connected) return;
+
+        const targets = filterSyncPose(this.poseController?.getPose?.() || {}, this.device);
+        if (!Object.keys(targets).length) return;
+        if (!hasPoseChanged(this._lastSentPose, targets)) return;
+        this._lastSentPose = targets;
+
+        try {
+            const ack = await this.client.sendJointTargets(targets);
+            if (!ack?.accepted) this._logSyncIssue('warning', `同步指令被拒绝：${ack?.reason || '未知原因'}`);
+        } catch (error) {
+            this._logSyncIssue('error', `同步下发失败：${error.message}`);
+        }
+    }
+
+    /** 拒绝/异常日志限频，避免每个节拍刷屏。 */
+    _logSyncIssue(level, message) {
+        const now = Date.now();
+        if (now - this._syncRejectedAt < 3000) return;
+        this._syncRejectedAt = now;
+        this.appendLog(level, message);
     }
 
     // ---------- 连接 ----------
@@ -99,9 +285,7 @@ export class RobotConnectionUI {
         // 先清空 device，避免 close 触发“掉线”事件
         this.device = null;
         this.client.close();
-        this.followEnabled = false;
-        const toggle = document.getElementById('robot-follow-toggle');
-        if (toggle) toggle.checked = false;
+        this._updateReadPoseButton();
 
         this._setState('connecting');
         this.appendLog('system', `连接 ${address}…`);
@@ -216,15 +400,16 @@ export class RobotConnectionUI {
         this.updateConnectionInfo();
         // 动画编辑器的“真机播放”按钮跟随连接状态
         this.animationWorkspace?.setRobotAvailable?.(state === 'connected');
+        this._updateReadPoseButton();
     }
 
     disconnect() {
         const wasConnected = Boolean(this.device);
+        this.setSyncControl(false, { silent: true });
+        this.robotGhost?.clear();
+        this.lastJointStates = null;
         this.device = null;
         this.client.close();
-        this.followEnabled = false;
-        const toggle = document.getElementById('robot-follow-toggle');
-        if (toggle) toggle.checked = false;
         this._setState('idle');
         if (wasConnected) this.appendLog('system', '已断开连接。');
     }
@@ -297,6 +482,7 @@ export class RobotConnectionUI {
         await this.client.setMode('follow');
         const ack = await this.client.sendJointTargets(pose);
         if (ack.accepted) {
+            this._lastSentPose = null;
             this.appendLog('system', `已下发当前位姿（${Object.keys(ack.applied || pose).length} 关节）。`);
         } else {
             this.appendLog('error', `位姿下发失败：${ack.reason || '未知原因'}`);
@@ -344,11 +530,14 @@ export class RobotConnectionUI {
         }
 
         this.appendLog('system', `下发轨迹：clip "${clip.name}"，${frames.length} 帧 @ ${fps}fps，时长 ${((endMs - startMs) / 1000).toFixed(1)}s…`);
+        // 轨迹执行期间暂停视口同步控制，避免与轨迹目标互相覆盖
+        this._syncSuspended = true;
         await this.client.setMode('execute');
         const ack = await this.client.playTrajectory(frames, fps, !!clip.loop);
         if (ack.accepted) {
             this.appendLog('system', `真机开始执行轨迹 ${ack.trajectoryId}（${ack.frameCount ?? frames.length} 帧）。`);
         } else {
+            this._syncSuspended = false;
             this.appendLog('error', `轨迹下发失败：${ack.reason || '未知原因'}`);
         }
     }
@@ -374,6 +563,7 @@ export class RobotConnectionUI {
         await this.client.setMode('follow');
         const ack = await this.client.sendJointTargets(targets);
         if (ack.accepted) {
+            this._lastSentPose = null;
             const count = Object.keys(ack.applied || targets).length;
             this.appendLog('system', `回零指令已接受（${count} 关节）。`);
             if (ack.rejected && Object.keys(ack.rejected).length) {
@@ -394,11 +584,8 @@ export class RobotConnectionUI {
         if (!this._requireConnected(true)) return;
         const ack = await this.client.emergencyStop();
         this.appendLog(ack.accepted ? 'warning' : 'error', ack.accepted ? '⚠ 急停已触发！机器人已失能。' : '急停指令失败，请立即使用物理急停按钮！');
-        if (this.followEnabled) {
-            this.followEnabled = false;
-            const toggle = document.getElementById('robot-follow-toggle');
-            if (toggle) toggle.checked = false;
-        }
+        // 急停后绝不能继续下发同步目标
+        this.setSyncControl(false, { silent: true });
     }
 
     _requireConnected(includeDevice = false) {
@@ -415,6 +602,9 @@ export class RobotConnectionUI {
         this.client.onClose = () => {
             // 连接尝试过程中的关闭不计入“掉线”
             if (!this.device) return;
+            this.setSyncControl(false, { silent: true });
+            this.robotGhost?.clear();
+            this.lastJointStates = null;
             this.device = null;
             this._setState('idle');
             this.appendLog('system', '与机器人的连接已断开。');
@@ -422,19 +612,18 @@ export class RobotConnectionUI {
 
         this.client.onStatus = (status) => {
             this.updateConnectionInfo();
-            if (this.followEnabled && status.jointStates) {
-                const pose = {};
-                for (const [name, state] of Object.entries(status.jointStates)) {
-                    if (typeof state?.position === 'number') pose[name] = state.position;
-                }
-                if (Object.keys(pose).length) {
-                    this.poseController.applyPose(pose, { source: 'robot' });
+            if (status.jointStates) {
+                this.lastJointStates = status.jointStates;
+                if (this.robotGhost && this.ghostVisible) {
+                    this.robotGhost.setPose(status.jointStates);
                 }
             }
             this._updateTelemetry(status);
         };
 
         this.client.onTrajectoryDone = (msg) => {
+            this._syncSuspended = false;
+            this._lastSentPose = null;
             this.appendLog('system', `轨迹 ${msg.trajectoryId} 执行完成。`);
         };
 
@@ -455,7 +644,25 @@ export class RobotConnectionUI {
         }
         const temps = joints.map(([, s]) => s.temperature).filter(t => typeof t === 'number');
         const maxTemp = temps.length ? Math.max(...temps) : null;
-        el.textContent = `遥测：${count} 关节 · ${status.state} · ${status.mode}${maxTemp !== null ? ` · 最高温度 ${maxTemp}°C` : ''}`;
+        // 同步控制下：视口是目标、真机是实际，差值即跟踪误差
+        const maxError = this.syncControlEnabled ? this._maxTrackingError(status.jointStates) : null;
+        el.textContent = `遥测：${count} 关节 · ${status.state} · ${status.mode}`
+            + `${maxTemp !== null ? ` · 最高温度 ${maxTemp}°C` : ''}`
+            + `${maxError !== null ? ` · 跟踪误差 ≤ ${maxError.toFixed(1)}°` : ''}`;
+    }
+
+    /** 各关节「真机实际 − 视口目标」的最大偏差（度）。 */
+    _maxTrackingError(states) {
+        if (!states || !this.poseController) return null;
+        let max = null;
+        for (const [name, state] of Object.entries(states)) {
+            const target = this.poseController.getJointValue?.(name);
+            if (typeof target !== 'number' || typeof state?.position !== 'number') continue;
+            const diff = Math.abs(state.position - target) * 180 / Math.PI;
+            if (!Number.isFinite(diff)) continue;
+            max = max === null ? diff : Math.max(max, diff);
+        }
+        return max;
     }
 
     // ---------- 日志 ----------

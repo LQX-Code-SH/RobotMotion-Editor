@@ -21,6 +21,7 @@ import { AnimationWorkspace } from './animation/ui/AnimationWorkspace.js';
 import { MobileLayout } from './ui/MobileLayout.js';
 import { ViewGizmo } from './ui/ViewGizmo.js';
 import { RobotConnectionUI } from './robot/RobotConnectionUI.js';
+import { RobotGhost } from './robot/RobotGhost.js';
 import { RobotDeployUI } from './robot/RobotDeployUI.js';
 import { RobotCatalogUI } from './robot/RobotCatalogUI.js';
 import { isVisualizationObject } from './utils/JointDragControls.js';
@@ -138,6 +139,10 @@ class App {
             this.poseController = new PoseController(this.sceneManager);
             this.sceneManager.setPoseController(this.poseController);
 
+            // 真机姿态幽灵层（半透明显示真机实际关节角）
+            this.robotGhost = new RobotGhost({ sceneManager: this.sceneManager });
+            window.robotGhost = this.robotGhost;
+
             // 点击关节轴箭头 / 零件时弹出的临时关节滑块
             this.jointQuickSlider = new JointQuickSlider({
                 sceneManager: this.sceneManager,
@@ -223,7 +228,9 @@ class App {
             this.robotConnectionUI = new RobotConnectionUI({
                 poseController: this.poseController,
                 animationWorkspace: this.animationWorkspace,
-                sceneManager: this.sceneManager
+                sceneManager: this.sceneManager,
+                endEffectorIKControls: this.endEffectorIKControls,
+                robotGhost: this.robotGhost
             });
             this.robotConnectionUI.init();
             window.robotConnectionUI = this.robotConnectionUI;
@@ -439,6 +446,7 @@ class App {
             this.currentModel = model;
             this.animationWorkspace?.setModel(null, file.name);
             this.endEffectorIKControls?.setModel(null);
+            this.robotGhost?.setModel(null);
             this.updateModelInfo(model, file);
 
             // Hide snapshot if exists
@@ -480,6 +488,7 @@ class App {
         this.currentModel = model;
         this.animationWorkspace?.setModel(isMesh ? null : model, file.name);
         this.endEffectorIKControls?.setModel(isMesh ? null : model);
+        this.robotGhost?.setModel(isMesh ? null : model);
 
         // Force render current state first (important!)
         this.sceneManager.redraw();

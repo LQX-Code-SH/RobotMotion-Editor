@@ -1128,6 +1128,7 @@
 
         .robot-row {
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
         }
 
@@ -1219,6 +1220,12 @@
             gap: 6px;
             font-size: 12px;
             cursor: pointer;
+        }
+
+        /* 会驱动真机的开关：勾选后高亮提醒 */
+        .robot-sync-row input:checked + span {
+            color: #FFD60A;
+            font-weight: 500;
         }
 
         .robot-log {
@@ -3999,16 +4006,27 @@
                         </div>
                         <div id="robot-telemetry" class="robot-telemetry">暂无遥测数据</div>
                         <label class="robot-follow-row">
-                            <input type="checkbox" id="robot-follow-toggle" />
-                            <span>视口同步（真机姿态实时映射到 3D 视口）</span>
+                            <input type="checkbox" id="robot-ghost-toggle" checked />
+                            <span>视口同步（真机姿态实时映射，以幽灵层显示）</span>
                         </label>
+                        <label class="robot-follow-row robot-sync-row">
+                            <input type="checkbox" id="robot-sync-control-toggle" />
+                            <span>真机同步控制（视口 → 真机）</span>
+                        </label>
+                        <div class="robot-hint">「视口同步」用半透明幽灵层实时显示真机实际姿态，不改动主模型；「真机同步控制」把视口里的关节/末端操作以约 12.5Hz 下发到真机。两者可同时开启。</div>
                     </div>
 
                     <div class="robot-section">
                         <label class="robot-label">动作下发</label>
+                        <label class="robot-follow-row">
+                            <input type="checkbox" id="robot-keyboard-jog-toggle" />
+                            <span>键盘控制（WASD 平移 · Q/E 升降 · 1-6 旋转）</span>
+                        </label>
+                        <div class="robot-hint">以机器人基座坐标系平移（+X 前 / +Y 左 / +Z 上）；绕末端工具轴旋转：1/2 横滚、3/4 俯仰、5/6 偏航。按住连续移动，松开后记录一次关键帧；配合「真机同步控制」可实时驱动真机。</div>
                         <div class="robot-row">
                             <button id="robot-send-pose-btn" class="robot-btn">发送当前位姿</button>
                             <button id="robot-home-btn" class="robot-btn">真机回零</button>
+                            <button id="robot-read-pose-btn" class="robot-btn" disabled title="把真机当前姿态读取到 3D 视口">读取真机姿态</button>
                         </div>
                         <div class="robot-row">
                             <button id="robot-stop-btn" class="robot-btn">停止</button>

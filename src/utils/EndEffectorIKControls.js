@@ -3,6 +3,14 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { classifyJointPart } from '../models/UnifiedRobotModel.js';
 import { isVisualizationObject } from './JointDragControls.js';
 import { buildChains, findChainForLink, readChainValues, selectArmChains, solveChain } from './kinematics.js';
+import {
+    isJogKey,
+    JOG_ROTATE_STEP_RAD,
+    JOG_TICK_MS,
+    JOG_TRANSLATE_STEP_M,
+    normalizeJogKey,
+    summarizeJog
+} from './endEffectorJog.js';
 
 const MODE_TRANSLATE = 'translate';
 const MODE_ROTATE = 'rotate';
@@ -48,8 +56,18 @@ export class EndEffectorIKControls {
         this._pointer = new THREE.Vector2();
         this._clickStart = null;
 
+        // 键盘 jog（真机面板「键盘控制」）
+        this.keyboardEnabled = false;
+        this.onKeyboardStateChange = null;
+        this._pressedJog = new Set();
+        this._jogTimer = null;
+
         this._onKeyDown = this._onKeyDown.bind(this);
+        this._onJogKeyDown = this._onJogKeyDown.bind(this);
+        this._onJogKeyUp = this._onJogKeyUp.bind(this);
         window.addEventListener('keydown', this._onKeyDown);
+        window.addEventListener('keydown', this._onJogKeyDown);
+        window.addEventListener('keyup', this._onJogKeyUp);
         this._bindCanvasClick();
     }
 
@@ -73,6 +91,7 @@ export class EndEffectorIKControls {
             return;
         }
         if (!this.chains.length) {
+            if (this.keyboardEnabled) this.setKeyboardEnabled(false);
             this.transform?.detach();
             this._updateHud();
             return;
@@ -105,6 +124,8 @@ export class EndEffectorIKControls {
             this._syncProxy();
             this._attach();
         } else {
+            // 关闭末端控制时一并退出键盘 jog，避免残留下发
+            if (this.keyboardEnabled) this.setKeyboardEnabled(false);
             this.transform?.detach();
             this.sceneManager.controls && (this.sceneManager.controls.enabled = true);
         }
@@ -175,6 +196,22 @@ export class EndEffectorIKControls {
         this._attach();
         this._updateHud();
         this.onMenuChange?.();
+    }
+
+    /** 键盘 jog 开关（真机控制面板）。开启时自动启用末端控制。 */
+    setKeyboardEnabled(enabled) {
+        const next = Boolean(enabled);
+        if (next) {
+            if (!this.model || !this.chains.length) {
+                this.onKeyboardStateChange?.(false);
+                return;
+            }
+            this.setEnabled(true);
+        }
+        if (this.keyboardEnabled === next) return;
+        this.keyboardEnabled = next;
+        if (!next) this._stopJog();
+        this.onKeyboardStateChange?.(next);
     }
 
     /** 语言切换后刷新 HUD 文案。 */
@@ -343,22 +380,37 @@ export class EndEffectorIKControls {
     }
 
     _handleGizmoChange() {
+        if (!this.enabled || !this.activeChain || !this.transform?.dragging) return;
+        const translateMode = this.mode === MODE_TRANSLATE;
+        this._solveToTarget({
+            posWeight: translateMode ? 1 : 0.35,
+            rotWeight: translateMode ? 0 : 1,
+            maxStep: translateMode ? 0.12 : 0.18,
+            useOrientation: !translateMode
+        });
+    }
+
+    /**
+     * 把当前代理位姿当作目标解一次 IK。拖动与键盘 jog 共用。
+     *
+     * @returns {object|null} solveChain 结果
+     */
+    _solveToTarget({ posWeight = 1, rotWeight = 0.25, maxStep = 0.15, useOrientation = true } = {}) {
         const chain = this.activeChain;
-        if (!this.enabled || !chain || !this.transform?.dragging) return;
+        if (!chain) return null;
 
         this.proxy.getWorldPosition(this._targetPosition);
         this.proxy.getWorldQuaternion(this._targetQuaternion);
 
-        const translateMode = this.mode === MODE_TRANSLATE;
         const result = solveChain({
             chain,
             targetPosition: this._targetPosition,
-            targetQuaternion: translateMode ? null : this._targetQuaternion,
+            targetQuaternion: useOrientation ? this._targetQuaternion : null,
             applyValues: (values) => this._applyValues(chain, values),
-            posWeight: translateMode ? 1 : 0.35,
-            rotWeight: translateMode ? 0 : 1,
+            posWeight,
+            rotWeight,
             maxIterations: 20,
-            maxStep: translateMode ? 0.12 : 0.18,
+            maxStep,
             damping: 0.02,
             ignoreLimits: Boolean(this.sceneManager.ignoreLimits),
             lockedJointNames: Array.from(this.lockedWaistJoints),
@@ -369,6 +421,7 @@ export class EndEffectorIKControls {
         this.dragErrorBudget = Math.max(this.dragErrorBudget, result.positionError || 0);
         this._updateHud();
         this.sceneManager.redraw();
+        return result;
     }
 
     _applyValues(chain, values) {
@@ -388,26 +441,131 @@ export class EndEffectorIKControls {
         }
     }
 
+    /** 拖动或 jog 结束时把变化的关节 commit 一次（Auto Key 据此记录关键帧）。 */
+    _commitJointChanges(chain) {
+        const before = this.preDragValues || [];
+        chain.joints.forEach((joint, index) => {
+            if (typeof before[index] !== 'number') return;
+            if (Math.abs((joint.currentValue ?? 0) - before[index]) <= 1e-6) return;
+            this.poseController.commitJointValue(joint.name, { source: 'viewport' });
+        });
+        this.preDragValues = null;
+    }
+
     _endDrag() {
         const chain = this.activeChain;
         this._lastGizmoAt = performance.now();
         if (this.sceneManager.controls) this.sceneManager.controls.enabled = true;
         if (!chain) return;
 
-        const before = this.preDragValues || [];
-        chain.joints.forEach((joint, index) => {
-            if (typeof before[index] !== 'number') return;
-            if (Math.abs((joint.currentValue ?? 0) - before[index]) <= 1e-6) return;
-            // commit 交给 Auto Key：动画编辑器据此记录一次完整姿态
-            this.poseController.commitJointValue(joint.name, { source: 'viewport' });
-        });
-        this.preDragValues = null;
+        this._commitJointChanges(chain);
 
         // 目标点回到真实末端位姿，避免不可达时 gizmo 越飘越远
         this._syncProxy();
         this.transform?.attach(this.proxy);
         this._updateHud();
         this.sceneManager.redraw();
+    }
+
+    // ==================== 键盘 jog ====================
+
+    _onJogKeyDown(event) {
+        if (!this.keyboardEnabled || !this.enabled) return;
+        const target = event.target;
+        const tag = target?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+        const key = normalizeJogKey(event.key);
+        if (!isJogKey(key)) return;
+
+        // 浏览器自动重复会带来不可控的速率，统一交给定时器
+        event.preventDefault();
+        if (event.repeat) return;
+
+        this._pressedJog.add(key);
+        this._startJog();
+    }
+
+    _onJogKeyUp(event) {
+        if (!this.keyboardEnabled) return;
+        const key = normalizeJogKey(event.key);
+        if (!this._pressedJog.has(key)) return;
+        this._pressedJog.delete(key);
+        if (!this._pressedJog.size) this._stopJog();
+    }
+
+    _startJog() {
+        const chain = this.activeChain;
+        if (!chain) return;
+        if (this._jogTimer) return;
+
+        // 每次重新开始时以真实末端为起点，清掉上一次的累计误差
+        if (!this.preDragValues) this.preDragValues = readChainValues(chain);
+        this._syncProxy();
+        this._jogTimer = setInterval(() => this._jogTick(), JOG_TICK_MS);
+    }
+
+    _stopJog() {
+        if (this._jogTimer) {
+            clearInterval(this._jogTimer);
+            this._jogTimer = null;
+        }
+        this._pressedJog.clear();
+
+        const chain = this.activeChain;
+        if (!chain || !this.preDragValues) return;
+        this._commitJointChanges(chain);
+        this._syncProxy();
+        this.transform?.attach(this.proxy);
+        this._updateHud();
+        this.sceneManager?.redraw();
+    }
+
+    _jogTick() {
+        if (!this.keyboardEnabled || !this.enabled) {
+            this._stopJog();
+            return;
+        }
+        const intent = summarizeJog(this._pressedJog);
+        if (!intent.active) return;
+        this._applyJogStep(intent);
+    }
+
+    /** 基座坐标系平移 + 工具局部轴旋转，单 tick 一个步长。 */
+    _applyJogStep(intent) {
+        const chain = this.activeChain;
+        if (!chain) return;
+
+        const modelQuaternion = this.model?.threeObject?.getWorldQuaternion(new THREE.Quaternion())
+            || new THREE.Quaternion();
+        const step = new THREE.Vector3(
+            intent.translation.x,
+            intent.translation.y,
+            intent.translation.z
+        ).multiplyScalar(JOG_TRANSLATE_STEP_M).applyQuaternion(modelQuaternion);
+        this.proxy.position.add(step);
+
+        const { roll, pitch, yaw } = intent.rotation;
+        const rotating = Boolean(roll || pitch || yaw);
+        if (rotating) {
+            const delta = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                roll * JOG_ROTATE_STEP_RAD,
+                pitch * JOG_ROTATE_STEP_RAD,
+                yaw * JOG_ROTATE_STEP_RAD,
+                'XYZ'
+            ));
+            this.proxy.quaternion.multiply(delta).normalize();
+        }
+
+        this.proxy.updateMatrixWorld(true);
+        // 平移时用较低姿态权重保持工具朝向，旋转时同时跟踪位置与姿态
+        this._solveToTarget({
+            posWeight: 1,
+            rotWeight: rotating ? 1 : 0.5,
+            maxStep: 0.15,
+            useOrientation: true
+        });
     }
 
     _onKeyDown(event) {

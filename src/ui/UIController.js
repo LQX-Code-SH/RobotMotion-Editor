@@ -141,6 +141,7 @@ export class UIController {
         if (upSelect) {
             upSelect.addEventListener('change', (e) => {
                 this.sceneManager.setUp(e.target.value);
+                window.robotGhost?.refresh?.();
             });
         }
 
