@@ -30,7 +30,7 @@ npm run station                  # 操作站网关（操作员电脑）
 node robot-server.js --adapter mock   # 机器人端桥接（无真机时用模拟器）
 ```
 
-协议与部署见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)。
+协议与部署见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)，部署形态与演进路线（本地安装为主，边缘网关 + TLS 为备选）见 [`docs/deployment.md`](docs/deployment.md)。
 
 ## 规划与进度
 
@@ -46,6 +46,7 @@ node robot-server.js --adapter mock   # 机器人端桥接（无真机时用模�
 | 优必选 SDK 实机对接 | 🔄 进行中 |
 | 实时遥操作（真机低延迟跟随） | ⏳ 计划中 |
 | 多机协同与动作库 | ⏳ 计划中 |
+| 边缘网关 + TLS 远程访问（[方案已记录](docs/deployment.md)，暂不开发） | ⏳ 计划中 |
 
 ## 致谢
 
