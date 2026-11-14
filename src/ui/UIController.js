@@ -753,6 +753,8 @@ export class UIController {
         this.setupPanelCloseButtons();
         this.setupAxesToggle();
         this.setupJointAxesToggle();
+        this.setupEndEffectorControl(callbacks.onEndEffectorControl);
+        this.setupEndEffectorMenu(callbacks.endEffectorIKControls);
         this.setupJointAxesMenu();
         this.setupLinkAxesMenu();
         this.setupShadowToggle();
@@ -761,10 +763,191 @@ export class UIController {
     }
 
     /**
+     * 顶部控制栏「末端控制」倒三角菜单：模式切换、腰部关节锁定、末端选择。
+     */
+    setupEndEffectorMenu(endEffector) {
+        const caret = document.getElementById('ee-control-menu-btn');
+        if (!caret || !endEffector) return;
+        this._endEffector = endEffector;
+
+        const t = (key, fallback) => window.i18n?.t(key) || fallback;
+        let menu = null;
+
+        const closeMenu = () => {
+            if (!menu) return;
+            menu.hidden = true;
+            caret.setAttribute('aria-expanded', 'false');
+        };
+        this._axesMenuClosers = this._axesMenuClosers || new Set();
+        this._axesMenuClosers.add(closeMenu);
+
+        const ensureMenu = () => {
+            if (menu) return menu;
+            menu = document.createElement('div');
+            menu.className = 'joint-axes-menu';
+
+            const head = document.createElement('div');
+            head.className = 'joint-axes-menu-head';
+            const title = document.createElement('span');
+            title.textContent = t('eeMenuTitle', '末端控制');
+            head.appendChild(title);
+
+            const body = document.createElement('div');
+            body.className = 'ee-menu-body';
+
+            menu.append(head, body);
+            menu.hidden = true;
+            menu.addEventListener('click', (event) => event.stopPropagation());
+            document.body.appendChild(menu);
+            return menu;
+        };
+
+        const render = () => {
+            const state = endEffector.getMenuState?.() || { mode: 'translate', chains: [], waistJoints: [] };
+            const el = ensureMenu();
+            const body = el.querySelector('.ee-menu-body');
+            body.innerHTML = '';
+
+            // 模式：平移 / 旋转
+            const modeLabel = document.createElement('div');
+            modeLabel.className = 'ee-menu-label';
+            modeLabel.textContent = t('eeMenuMode', '模式');
+            const seg = document.createElement('div');
+            seg.className = 'ee-mode-seg';
+            [
+                ['translate', t('eeModeTranslate', '平移')],
+                ['rotate', t('eeModeRotate', '旋转')]
+            ].forEach(([mode, label]) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                if (state.mode === mode) button.classList.add('active');
+                button.addEventListener('click', () => {
+                    endEffector.setMode(mode);
+                    render();
+                });
+                seg.appendChild(button);
+            });
+            body.append(modeLabel, seg);
+
+            // 腰部关节锁定
+            const waistLabel = document.createElement('div');
+            waistLabel.className = 'ee-menu-label';
+            waistLabel.textContent = t('eeMenuWaistLock', '锁定腰部关节');
+            body.appendChild(waistLabel);
+
+            if (!state.waistJoints.length) {
+                const empty = document.createElement('div');
+                empty.className = 'ee-menu-empty';
+                empty.textContent = t('eeMenuNoWaist', '当前模型无腰部关节');
+                body.appendChild(empty);
+            }
+            state.waistJoints.forEach(({ name: jointName, locked }) => {
+                const item = document.createElement('label');
+                item.className = 'joint-axes-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = locked;
+                checkbox.addEventListener('change', () => {
+                    endEffector.setWaistLocked(jointName, checkbox.checked);
+                });
+                const text = document.createElement('span');
+                text.textContent = jointName;
+                item.append(checkbox, text);
+                body.appendChild(item);
+            });
+
+            // 末端列表（点击 3D 中的手臂也会切换）
+            const chainLabel = document.createElement('div');
+            chainLabel.className = 'ee-menu-label';
+            chainLabel.textContent = t('eeMenuChains', '末端');
+            body.appendChild(chainLabel);
+
+            if (!state.chains.length) {
+                const empty = document.createElement('div');
+                empty.className = 'ee-menu-empty';
+                empty.textContent = t('eeNoChains', '当前模型无可控末端');
+                body.appendChild(empty);
+            }
+            state.chains.forEach(({ id, label, active }) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'ee-chain-item';
+                if (active) item.classList.add('active');
+                const nameEl = document.createElement('span');
+                nameEl.textContent = label;
+                const tag = document.createElement('span');
+                tag.className = 'ee-chain-tag';
+                tag.textContent = active ? t('eeActive', '当前') : '';
+                item.append(nameEl, tag);
+                item.addEventListener('click', () => {
+                    endEffector.selectChain(id);
+                    render();
+                });
+                body.appendChild(item);
+            });
+        };
+
+        const openMenu = () => {
+            this.closeAxesMenus(closeMenu);
+            render();
+            menu.hidden = false;
+            caret.setAttribute('aria-expanded', 'true');
+
+            const rect = caret.getBoundingClientRect();
+            const width = menu.offsetWidth || 240;
+            const height = menu.offsetHeight || 260;
+            const left = Math.min(
+                Math.max(8, rect.right - width),
+                Math.max(8, window.innerWidth - width - 8)
+            );
+            const below = rect.bottom + 8;
+            const top = below + height <= window.innerHeight - 8
+                ? below
+                : Math.max(8, rect.top - height - 8);
+            menu.style.left = `${left}px`;
+            menu.style.top = `${top}px`;
+        };
+
+        caret.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (menu && !menu.hidden) closeMenu();
+            else openMenu();
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!menu || menu.hidden) return;
+            if (menu.contains(event.target) || event.target === caret) return;
+            closeMenu();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeMenu();
+        });
+
+        // 3D 点击切换末端 / 模式变化时同步菜单
+        endEffector.onMenuChange = () => {
+            if (menu && !menu.hidden) render();
+        };
+    }
+
+    /**
+     * 顶部控制栏「末端控制」开关：状态由 EndEffectorIKControls 回写。
+     */
+    setupEndEffectorControl(onToggle) {
+        const button = document.getElementById('toggle-ee-control-btn');
+        if (!button) return;
+        button.addEventListener('click', () => {
+            this.closeAxesMenus?.();
+            const next = button.getAttribute('data-checked') !== 'true';
+            onToggle?.(next);
+        });
+    }
+
+    /**
      * Get current angle unit
      */
     getAngleUnit() {
         return this.angleUnit;
-    }
-}
+    }}
 

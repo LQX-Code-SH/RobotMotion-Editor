@@ -485,6 +485,8 @@ export class PointerJointDragControls extends JointDragControls {
 
         this._mouseDown = e => {
             if (e.button !== 0) return;
+            // 末端 IK 模式会临时关闭关节拖拽，避免抢走 gizmo 的点击
+            if (this.enabled === false) return;
             updateMouse(e);
             raycaster.setFromCamera(mouse, this.camera);
 

@@ -25,6 +25,7 @@ import { RobotDeployUI } from './robot/RobotDeployUI.js';
 import { RobotCatalogUI } from './robot/RobotCatalogUI.js';
 import { isVisualizationObject } from './utils/JointDragControls.js';
 import { JointQuickSlider } from './ui/JointQuickSlider.js';
+import { EndEffectorIKControls } from './utils/EndEffectorIKControls.js';
 import './ui/mobile-layout.css';
 import './ui/view-gizmo.css';
 
@@ -144,6 +145,13 @@ class App {
             });
             this.jointQuickSlider.init();
 
+            // 末端笛卡尔空间拖动（IK）：控制栏按钮开启，拖动时反解整条关节链
+            this.endEffectorIKControls = new EndEffectorIKControls({
+                sceneManager: this.sceneManager,
+                poseController: this.poseController
+            });
+            window.endEffectorIKControls = this.endEffectorIKControls;
+
             // Create USD viewer container (container only, WASM initialized on demand)
             this.createUSDViewerContainer();
 
@@ -200,7 +208,9 @@ class App {
                 onLanguageChanged: (lang) => this.handleLanguageChanged(lang),
                 onResetJoints: () => this.handleResetJoints(),
                 onMujocoReset: () => this.handleMujocoReset(),
-                onMujocoToggleSimulate: () => this.handleMujocoToggleSimulate()
+                onMujocoToggleSimulate: () => this.handleMujocoToggleSimulate(),
+                onEndEffectorControl: (enabled) => this.endEffectorIKControls?.setEnabled(enabled),
+                endEffectorIKControls: this.endEffectorIKControls
             });
 
             // Animation editor is deliberately separate from hardware/simulation.
@@ -428,6 +438,7 @@ class App {
 
             this.currentModel = model;
             this.animationWorkspace?.setModel(null, file.name);
+            this.endEffectorIKControls?.setModel(null);
             this.updateModelInfo(model, file);
 
             // Hide snapshot if exists
@@ -468,6 +479,7 @@ class App {
 
         this.currentModel = model;
         this.animationWorkspace?.setModel(isMesh ? null : model, file.name);
+        this.endEffectorIKControls?.setModel(isMesh ? null : model);
 
         // Force render current state first (important!)
         this.sceneManager.redraw();
@@ -929,6 +941,7 @@ class App {
         if (this.currentModel && this.jointControlsUI) {
             this.jointControlsUI.resetAllJoints(this.currentModel);
         }
+        this.endEffectorIKControls?.refresh();
     }
 
     /**
@@ -947,6 +960,7 @@ class App {
         i18n.setLanguage(lang);
         this.sceneManager?.viewGizmo?.refreshLanguage();
         this.animationWorkspace?.refreshLanguage();
+        this.endEffectorIKControls?.refreshLanguage();
 
         // Update code editor save status text
         if (this.codeEditorManager) {

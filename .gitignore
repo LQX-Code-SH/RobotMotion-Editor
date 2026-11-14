@@ -35,3 +35,6 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# IDE / agent 项目数据（本地计划与缓存）
+.codebuddy/

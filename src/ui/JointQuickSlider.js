@@ -77,6 +77,8 @@ export class JointQuickSlider {
 
     /** 点击画布：命中关节轴箭头或零件时打开临时滑块 */
     handleCanvasClick(clientX, clientY) {
+        // 末端 IK 模式下点击属于 gizmo 交互，不弹临时滑块
+        if (this.sceneManager?.ikControlActive) return;
         const joint = this.pickJoint(clientX, clientY);
         if (!joint) {
             this.close();

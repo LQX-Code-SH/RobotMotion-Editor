@@ -3526,6 +3526,220 @@
             opacity: 0.3;
         }
 
+        /* 末端 IK 控制 HUD */
+        .ee-hud {
+            position: fixed;
+            right: 18px;
+            bottom: 76px;
+            z-index: 30;
+            width: 212px;
+            padding: 10px 12px 9px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(28, 28, 30, 0.78);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+            color: var(--text-secondary);
+            font-size: 11px;
+            line-height: 1.5;
+            pointer-events: none;
+            animation: ee-hud-in 0.18s ease-out;
+        }
+
+        [data-theme="light"] .ee-hud {
+            border-color: rgba(0, 0, 0, 0.06);
+            background: rgba(250, 250, 252, 0.92);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+        }
+
+        @keyframes ee-hud-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        .ee-hud-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .ee-hud-pulse {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #30D158;
+            box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.18);
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .ee-hud.is-warn .ee-hud-pulse {
+            background: #FFD60A;
+            box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.18);
+        }
+
+        .ee-hud.is-error .ee-hud-pulse {
+            background: #FF453A;
+            box-shadow: 0 0 0 3px rgba(255, 69, 58, 0.18);
+        }
+
+        .ee-hud-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ee-hud-badge {
+            padding: 1px 6px;
+            border-radius: 6px;
+            background: rgba(10, 132, 255, 0.16);
+            color: #0A84FF;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .ee-hud-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2px 8px;
+        }
+
+        .ee-hud-grid b {
+            font-weight: 500;
+            color: var(--text-primary);
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ee-hud-status {
+            margin-top: 5px;
+        }
+
+        .ee-hud.is-warn .ee-hud-status { color: #FFD60A; }
+        .ee-hud.is-error .ee-hud-status { color: #FF453A; }
+
+        .ee-hud-hint {
+            margin-top: 7px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(142, 142, 147, 0.9);
+            font-size: 10px;
+        }
+
+        [data-theme="light"] .ee-hud-hint {
+            border-top-color: rgba(0, 0, 0, 0.06);
+        }
+
+        /* 末端控制下拉菜单 */
+        .ee-menu-body {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 2px 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .ee-menu-label {
+            padding: 2px 2px 0;
+            font-size: 10px;
+            letter-spacing: 0.02em;
+            color: var(--text-secondary);
+            opacity: 0.72;
+        }
+
+        .ee-mode-seg {
+            display: flex;
+            gap: 4px;
+        }
+
+        .ee-mode-seg button {
+            flex: 1;
+            padding: 5px 8px;
+            border: 1px solid transparent;
+            border-radius: 7px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        [data-theme="light"] .ee-mode-seg button {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .ee-mode-seg button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .ee-mode-seg button.active {
+            background: rgba(10, 132, 255, 0.18);
+            border-color: rgba(10, 132, 255, 0.45);
+            color: #0A84FF;
+            font-weight: 500;
+        }
+
+        .ee-chain-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            padding: 6px 8px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 11px;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .ee-chain-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+        }
+
+        .ee-chain-item.active {
+            background: rgba(10, 132, 255, 0.14);
+            color: #0A84FF;
+        }
+
+        .ee-chain-tag {
+            font-size: 9px;
+            opacity: 0.75;
+        }
+
+        .ee-menu-empty {
+            padding: 6px 8px;
+            font-size: 10px;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            .ee-hud {
+                right: 12px;
+                bottom: 64px;
+                width: 168px;
+                padding: 8px 10px;
+            }
+
+            .ee-hud-hint {
+                display: none;
+            }
+        }
+
     </style>
     <!-- MATOMO_PLACEHOLDER -->
 </head>
@@ -3569,6 +3783,15 @@
                         </button>
                         <button type="button" class="control-split-caret" id="joint-axes-menu-btn"
                                 title="选择要显示的关节轴" aria-haspopup="true" aria-expanded="false">▾</button>
+                    </div>
+                    <div class="control-split">
+                        <button class="control-button" id="toggle-ee-control-btn" data-checked="false"
+                                title="末端笛卡尔空间拖动（IK）">
+                            <span data-i18n="eeControl"></span>
+                        </button>
+                        <button type="button" class="control-split-caret" id="ee-control-menu-btn"
+                                title="末端控制选项" data-i18n-title="eeControlMenuHint"
+                                aria-haspopup="true" aria-expanded="false">▾</button>
                     </div>
                     <button class="control-button active" id="toggle-shadow" data-checked="true">
                         <span data-i18n="shadow"></span>
@@ -3922,6 +4145,22 @@
     </div>
 
     <div id="copyright-watermark" data-i18n="copyright">
+    </div>
+
+    <div id="ee-hud" class="ee-hud" hidden>
+        <div class="ee-hud-header">
+            <span class="ee-hud-pulse"></span>
+            <span class="ee-hud-title" id="ee-hud-title"></span>
+            <span class="ee-hud-badge" id="ee-hud-mode"></span>
+        </div>
+        <div class="ee-hud-grid">
+            <span data-i18n="eeErrorPos">位置误差</span>
+            <b id="ee-hud-pos">—</b>
+            <span data-i18n="eeErrorRot">姿态误差</span>
+            <b id="ee-hud-rot">—</b>
+        </div>
+        <div class="ee-hud-status" id="ee-hud-status"></div>
+        <div class="ee-hud-hint" data-i18n="eeControlHint"></div>
     </div>
 
     <script type="module" src="/src/main.js"></script>
