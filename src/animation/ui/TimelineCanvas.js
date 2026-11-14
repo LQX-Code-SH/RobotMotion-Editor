@@ -546,7 +546,7 @@ export class TimelineCanvas {
         });
 
         context.fillStyle = colors.text;
-        context.fillText('Tracks', 12, 15);
+        context.fillText(window.i18n?.t?.('animationTracks') || 'Tracks', 12, 15);
         context.fillStyle = 'rgba(10,132,255,.25)';
         context.fillRect(rangeStartX, 27, Math.max(2, rangeEndX - rangeStartX), 9);
         context.fillStyle = colors.accent;

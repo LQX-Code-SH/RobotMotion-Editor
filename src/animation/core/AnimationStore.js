@@ -21,11 +21,12 @@ function normalizeHandle(handle, fallback) {
 }
 
 export class AnimationStore {
-    constructor() {
+    constructor({ defaultClipName } = {}) {
         this.listeners = new Set();
         this.history = { past: [], future: [], limit: 100 };
         this.transaction = null;
         this.restoring = false;
+        this.defaultClipName = defaultClipName || 'Animation 1';
         this.project = this.createProject('Robot', []);
     }
 
@@ -60,7 +61,7 @@ export class AnimationStore {
     }
 
     createProject(robotName, jointNames) {
-        const clip = this.createClip('Animation 1', jointNames);
+        const clip = this.createClip(this.defaultClipName || 'Animation 1', jointNames);
         return {
             schemaVersion: SCHEMA_VERSION,
             robot: { name: robotName || 'Robot', jointNames: [...jointNames] },

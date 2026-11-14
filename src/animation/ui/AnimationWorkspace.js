@@ -10,7 +10,10 @@ import './animation-workspace.css';
 export class AnimationWorkspace {
     constructor({ poseController }) {
         this.poseController = poseController;
-        this.store = new AnimationStore();
+        this.store = new AnimationStore({
+            // 默认动画名跟随界面语言（仅影响新建工程，已保存的名称不变）
+            defaultClipName: window.i18n?.t('animationDefaultName')?.replace('{index}', '1') || 'Animation 1'
+        });
         this.selection = new EditorSelection();
         this.playback = new PlaybackController(this.store, poseController);
         this.model = null;
@@ -76,51 +79,51 @@ export class AnimationWorkspace {
                     <span class="animation-experimental-badge" data-i18n="animationExperimental">Experimental · In development</span>
                 </div>
                 <div class="animation-tool-group animation-clip-group">
-                    <select class="animation-select animation-clip-select" data-action="clip" title="Animation"></select>
+                    <select class="animation-select animation-clip-select" data-action="clip" title="Animation" data-i18n-title="animationClip"></select>
                     <div class="animation-popover-wrap">
-                        <button type="button" class="animation-icon-button" data-menu-toggle="clip" title="Animation options">•••</button>
+                        <button type="button" class="animation-icon-button" data-menu-toggle="clip" title="Animation options" data-i18n-title="animationClipOptions">•••</button>
                         <div class="animation-popover" data-menu="clip" hidden>
-                            <button type="button" data-action="new-clip"><span>＋</span> New animation</button>
-                            <button type="button" data-action="duplicate-clip"><span>⧉</span> Duplicate</button>
-                            <button type="button" data-action="rename-clip"><span>✎</span> Rename</button>
-                            <button type="button" class="danger" data-action="delete-clip"><span>⌫</span> Delete</button>
+                            <button type="button" data-action="new-clip"><span>＋</span> <i data-i18n="animationNewClip">New animation</i></button>
+                            <button type="button" data-action="duplicate-clip"><span>⧉</span> <i data-i18n="animationDuplicateClip">Duplicate</i></button>
+                            <button type="button" data-action="rename-clip"><span>✎</span> <i data-i18n="animationRenameClip">Rename</i></button>
+                            <button type="button" class="danger" data-action="delete-clip"><span>⌫</span> <i data-i18n="animationDeleteClip">Delete</i></button>
                         </div>
                     </div>
                 </div>
                 <div class="animation-tool-group">
-                    <button type="button" class="animation-icon-button" data-action="undo" title="Undo (Ctrl/Cmd+Z)">↶</button>
-                    <button type="button" class="animation-icon-button" data-action="redo" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
+                    <button type="button" class="animation-icon-button" data-action="undo" title="Undo (Ctrl/Cmd+Z)" data-i18n-title="animationUndo">↶</button>
+                    <button type="button" class="animation-icon-button" data-action="redo" title="Redo (Ctrl/Cmd+Shift+Z)" data-i18n-title="animationRedo">↷</button>
                 </div>
                 <div class="animation-tool-group animation-transport">
-                    <button type="button" class="animation-icon-button" data-action="stop" title="Stop">■</button>
-                    <button type="button" class="animation-icon-button animation-play-button" data-action="play" title="Play/Pause (Space)">▶</button>
-                    <button type="button" class="animation-icon-button animation-record-button" data-action="record" title="Record armed or selected tracks">●</button>
+                    <button type="button" class="animation-icon-button" data-action="stop" title="Stop" data-i18n-title="animationStop">■</button>
+                    <button type="button" class="animation-icon-button animation-play-button" data-action="play" title="Play/Pause (Space)" data-i18n-title="animationPlayPause">▶</button>
+                    <button type="button" class="animation-icon-button animation-record-button" data-action="record" title="Record armed or selected tracks" data-i18n-title="animationRecordHint">●</button>
                 </div>
-                <button type="button" class="animation-button animation-robot-action" data-action="play-to-robot" data-i18n="playToRobot" title="Play on the real robot" disabled>Play on Robot</button>
+                <button type="button" class="animation-button animation-robot-action" data-action="play-to-robot" data-i18n="playToRobot" title="Play on the real robot" data-i18n-title="playToRobotTitle" disabled>Play on Robot</button>
                 <div class="animation-segmented animation-view-switch">
                     <button type="button" class="active" data-action="show-timeline" data-i18n="dopeSheet">Dope Sheet</button>
                     <button type="button" data-action="show-graph" data-i18n="graphView">Graph</button>
                 </div>
-                <button type="button" class="animation-icon-button" data-action="input-map" title="Live gamepad input">⌁</button>
-                <button type="button" class="animation-icon-button animation-guide-button" data-action="guide" title="Quick start guide">?</button>
+                <button type="button" class="animation-icon-button" data-action="input-map" title="Live gamepad input" data-i18n-title="animationLiveInput">⌁</button>
+                <button type="button" class="animation-icon-button animation-guide-button" data-action="guide" title="Quick start guide" data-i18n-title="animationGuideOpen">?</button>
                 <span class="animation-spacer"></span>
                 <span class="animation-save-status" data-i18n="saved">Saved</span>
                 <div class="animation-popover-wrap">
-                    <button type="button" class="animation-icon-button" data-menu-toggle="file" title="Project file">☰</button>
+                    <button type="button" class="animation-icon-button" data-menu-toggle="file" title="Project file" data-i18n-title="animationProjectFile">☰</button>
                     <div class="animation-popover animation-popover-right" data-menu="file" hidden>
-                        <button type="button" data-action="import"><span>⇧</span> Import JSON</button>
-                        <button type="button" data-action="export"><span>⇩</span> Export JSON</button>
+                        <button type="button" data-action="import"><span>⇧</span> <i data-i18n="animationImportJson">Import JSON</i></button>
+                        <button type="button" data-action="export"><span>⇩</span> <i data-i18n="animationExportJson">Export JSON</i></button>
                     </div>
                 </div>
-                <button type="button" class="animation-icon-button" data-action="close" title="Close">×</button>
+                <button type="button" class="animation-icon-button" data-action="close" title="Close" data-i18n-title="animationClose">×</button>
                 <input type="file" data-action="file" accept=".json,.robotanim.json,application/json" hidden>
             </div>
             <div class="animation-toolbar animation-toolbar-tools">
                 <div class="animation-tool-group animation-nav-group">
-                    <button type="button" class="animation-icon-button" data-action="previous-key" title="Previous keyframe (J)">◀◆</button>
-                    <button type="button" class="animation-icon-button" data-action="next-key" title="Next keyframe (K)">◆▶</button>
-                    <button type="button" class="animation-icon-button" data-action="previous-frame" title="Previous frame (Left)">−1f</button>
-                    <button type="button" class="animation-icon-button" data-action="next-frame" title="Next frame (Right)">+1f</button>
+                    <button type="button" class="animation-icon-button" data-action="previous-key" title="Previous keyframe (J)" data-i18n-title="animationPrevKey">◀◆</button>
+                    <button type="button" class="animation-icon-button" data-action="next-key" title="Next keyframe (K)" data-i18n-title="animationNextKey">◆▶</button>
+                    <button type="button" class="animation-icon-button" data-action="previous-frame" title="Previous frame (Left)" data-i18n-title="animationPrevFrame">−1f</button>
+                    <button type="button" class="animation-icon-button" data-action="next-frame" title="Next frame (Right)" data-i18n-title="animationNextFrame">+1f</button>
                 </div>
                 <label class="animation-time-field"><span data-i18n="time">Time</span><input class="animation-time-input" data-action="time" value="0:00"></label>
                 <div class="animation-popover-wrap">
@@ -139,44 +142,44 @@ export class AnimationWorkspace {
                         <button type="button" data-action="audio-reactive"><span>≋</span><i data-i18n="animationAudioReactive">Audio reactive keys</i></button>
                     </div>
                     <div class="animation-popover animation-submenu" data-menu="event" hidden>
-                        <button type="button" data-event-kind="trigger"><span>⚡</span> Trigger event</button>
-                        <button type="button" data-event-kind="boolean"><span>◐</span> On / off event</button>
-                        <button type="button" data-event-kind="number"><span>◆</span> Curved value</button>
-                        <button type="button" data-event-kind="color"><span>⬟</span> Color event</button>
+                        <button type="button" data-event-kind="trigger"><span>⚡</span> <i data-i18n="animationEventTrigger">Trigger event</i></button>
+                        <button type="button" data-event-kind="boolean"><span>◐</span> <i data-i18n="animationEventOnOff">On / off event</i></button>
+                        <button type="button" data-event-kind="number"><span>◆</span> <i data-i18n="animationEventValue">Curved value</i></button>
+                        <button type="button" data-event-kind="color"><span>⬟</span> <i data-i18n="animationEventColorEvent">Color event</i></button>
                     </div>
                 </div>
                 <div class="animation-popover-wrap">
-                    <button type="button" class="animation-icon-button" data-menu-toggle="edit" title="Edit selection">⋮</button>
+                    <button type="button" class="animation-icon-button" data-menu-toggle="edit" title="Edit selection" data-i18n-title="animationEditSelection">⋮</button>
                     <div class="animation-popover" data-menu="edit" hidden>
-                        <button type="button" data-action="copy"><span>⧉</span> Copy</button>
-                        <button type="button" data-action="paste"><span>▣</span> Paste</button>
-                        <button type="button" class="danger" data-action="delete-key"><span>⌫</span> Delete selection</button>
+                        <button type="button" data-action="copy"><span>⧉</span> <i data-i18n="animationCopy">Copy</i></button>
+                        <button type="button" data-action="paste"><span>▣</span> <i data-i18n="animationPaste">Paste</i></button>
+                        <button type="button" class="danger" data-action="delete-key"><span>⌫</span> <i data-i18n="animationDeleteSelection">Delete selection</i></button>
                     </div>
                 </div>
-                <label class="animation-chip animation-autokey" title="Auto Key"><input type="checkbox" data-action="auto-key" checked><span data-i18n="autoKey">Auto Key</span></label>
-                <label class="animation-chip" title="Loop playback"><input type="checkbox" data-action="loop" checked><span data-i18n="loop">Loop</span></label>
-                <label class="animation-chip" title="Snap to 30 fps frames"><input type="checkbox" data-action="snap" checked><span>30 fps</span></label>
+                <label class="animation-chip animation-autokey" title="Auto Key" data-i18n-title="autoKey"><input type="checkbox" data-action="auto-key" checked><span data-i18n="autoKey">Auto Key</span></label>
+                <label class="animation-chip" title="Loop playback" data-i18n-title="animationLoopHint"><input type="checkbox" data-action="loop" checked><span data-i18n="loop">Loop</span></label>
+                <label class="animation-chip" title="Snap to 30 fps frames" data-i18n-title="animationSnapHint"><input type="checkbox" data-action="snap" checked><span>30 fps</span></label>
                 <div class="animation-tool-group animation-zoom-group">
-                    <span class="animation-zoom-icon">−</span><input type="range" data-action="zoom" min="0" max="100" value="75" title="Timeline zoom"><span class="animation-zoom-icon">＋</span>
-                    <button type="button" class="animation-icon-button" data-action="fit-time" title="Fit animation">↔</button>
-                    <button type="button" class="animation-icon-button graph-only" data-action="fit-value" title="Fit graph values">↕</button>
+                    <span class="animation-zoom-icon">−</span><input type="range" data-action="zoom" min="0" max="100" value="75" title="Timeline zoom" data-i18n-title="animationZoomHint"><span class="animation-zoom-icon">＋</span>
+                    <button type="button" class="animation-icon-button" data-action="fit-time" title="Fit animation" data-i18n-title="animationFitTime">↔</button>
+                    <button type="button" class="animation-icon-button graph-only" data-action="fit-value" title="Fit graph values" data-i18n-title="animationFitValue">↕</button>
                 </div>
                 <div class="animation-segmented graph-only">
-                    <button type="button" class="active" data-axis="none" title="Free move">◇</button>
-                    <button type="button" data-axis="time" title="Lock to time axis">↔</button>
-                    <button type="button" data-axis="value" title="Lock to value axis">↕</button>
+                    <button type="button" class="active" data-axis="none" title="Free move" data-i18n-title="animationFreeMove">◇</button>
+                    <button type="button" data-axis="time" title="Lock to time axis" data-i18n-title="animationLockTimeAxis">↔</button>
+                    <button type="button" data-axis="value" title="Lock to value axis" data-i18n-title="animationLockValueAxis">↕</button>
                 </div>
-                <button type="button" class="animation-icon-button graph-only" data-action="lock-graph" title="Lock displayed curves to the current selection">♙</button>
+                <button type="button" class="animation-icon-button graph-only" data-action="lock-graph" title="Lock displayed curves to the current selection" data-i18n-title="animationLockGraph">♙</button>
                 <span class="animation-spacer"></span>
                 <label class="animation-duration-field"><span data-i18n="duration">Duration</span><input class="animation-time-input" data-action="duration" value="10:00"></label>
             </div>
             <div class="animation-toolbar animation-toolbar-properties" hidden>
                 <span class="animation-selection">—</span>
-                <label class="animation-field" title="Keyframe time"><span data-i18n="keyTime">Key time</span><input class="animation-time-input" data-action="key-time" disabled></label>
-                <label class="animation-field" title="Keyframe value"><span data-i18n="keyValue">Value</span><input type="number" data-action="key-value" step="0.001" disabled></label>
-                <label class="animation-field animation-event-value" title="Event state" hidden><span>State</span><input type="checkbox" data-action="key-boolean"></label>
-                <label class="animation-field animation-event-color" title="Event color" hidden><span>Color</span><input type="color" data-action="key-color"></label>
-                <label class="animation-field" title="Interpolation"><span data-i18n="interpolation">Interpolation</span>
+                <label class="animation-field" title="Keyframe time" data-i18n-title="keyTime"><span data-i18n="keyTime">Key time</span><input class="animation-time-input" data-action="key-time" disabled></label>
+                <label class="animation-field" title="Keyframe value" data-i18n-title="keyValue"><span data-i18n="keyValue">Value</span><input type="number" data-action="key-value" step="0.001" disabled></label>
+                <label class="animation-field animation-event-value" title="Event state" data-i18n-title="animationEventState" hidden><span data-i18n="animationEventState">State</span><input type="checkbox" data-action="key-boolean"></label>
+                <label class="animation-field animation-event-color" title="Event color" data-i18n-title="animationEventColor" hidden><span data-i18n="animationEventColor">Color</span><input type="color" data-action="key-color"></label>
+                <label class="animation-field" title="Interpolation" data-i18n-title="interpolation"><span data-i18n="interpolation">Interpolation</span>
                     <select class="animation-select" data-action="interpolation" disabled>
                         <option value="auto" data-i18n="autoSmooth">Auto Smooth</option>
                         <option value="smooth" data-i18n="smooth">Smooth</option>
@@ -185,9 +188,9 @@ export class AnimationWorkspace {
                         <option value="step" data-i18n="step">Step</option>
                     </select>
                 </label>
-                <label class="animation-pose-field" title="Saved pose"><span>Pose</span><select class="animation-select" data-action="pose"><option value="">—</option></select></label>
-                <button type="button" class="animation-icon-button" data-action="delete-pose" title="Delete saved pose">⌫</button>
-                <span class="animation-selection-help">Shift adds · Ctrl/Cmd toggles · Alt/Option-click or double-click selects the whole column · red track dot arms recording</span>
+                <label class="animation-pose-field" title="Saved pose" data-i18n-title="animationSavedPose"><span data-i18n="animationPose">Pose</span><select class="animation-select" data-action="pose"><option value="">—</option></select></label>
+                <button type="button" class="animation-icon-button" data-action="delete-pose" title="Delete saved pose" data-i18n-title="animationDeletePose">⌫</button>
+                <span class="animation-selection-help" data-i18n="animationSelectionHelp">Shift adds · Ctrl/Cmd toggles · Alt/Option-click or double-click selects the whole column · red track dot arms recording</span>
             </div>
             <div class="animation-status" hidden></div>
             <div class="animation-guide" hidden>
@@ -203,7 +206,7 @@ export class AnimationWorkspace {
                     <button type="button" class="animation-button" data-action="guide-record"></button>
                     <button type="button" class="animation-button" data-action="guide-play">▶</button>
                     <button type="button" class="animation-button animation-primary-action" data-action="guide-next"></button>
-                    <button type="button" class="animation-icon-button" data-action="dismiss-guide" title="Dismiss">×</button>
+                    <button type="button" class="animation-icon-button" data-action="dismiss-guide" title="Dismiss" data-i18n-title="animationDismiss">×</button>
                 </div>
             </div>
             <div class="animation-editor-body">
@@ -213,30 +216,30 @@ export class AnimationWorkspace {
             </div>
             <div class="animation-dialog-backdrop" data-dialog="input" hidden>
                 <div class="animation-dialog">
-                    <div class="animation-dialog-header"><div><strong>Live Input</strong><span>Map gamepad axes or keyboard pairs, then record editable keys.</span></div><button type="button" class="animation-icon-button" data-action="close-input">×</button></div>
-                    <div class="animation-input-status">No gamepad detected</div>
+                    <div class="animation-dialog-header"><div><strong data-i18n="animationLiveInputTitle">Live Input</strong><span data-i18n="animationLiveInputDesc">Map gamepad axes or keyboard pairs, then record editable keys.</span></div><button type="button" class="animation-icon-button" data-action="close-input" data-i18n-title="animationClose">×</button></div>
+                    <div class="animation-input-status" data-i18n="animationNoGamepad">No gamepad detected</div>
                     <div class="animation-input-mappings"></div>
-                    <div class="animation-dialog-footer"><button type="button" class="animation-button" data-action="clear-input">Clear</button><button type="button" class="animation-button animation-primary-action" data-action="auto-input">Auto map axes</button></div>
+                    <div class="animation-dialog-footer"><button type="button" class="animation-button" data-action="clear-input" data-i18n="animationClearInput">Clear</button><button type="button" class="animation-button animation-primary-action" data-action="auto-input" data-i18n="animationAutoMapAxes">Auto map axes</button></div>
                 </div>
             </div>
             <div class="animation-dialog-backdrop" data-dialog="audio-reactive" hidden>
                 <div class="animation-dialog animation-audio-dialog">
-                    <div class="animation-dialog-header"><div><strong>Audio Reactive Keys</strong><span>Convert an imported waveform into editable joint keyframes.</span></div><button type="button" class="animation-icon-button" data-action="close-audio-reactive">×</button></div>
+                    <div class="animation-dialog-header"><div><strong data-i18n="animationAudioReactiveTitle">Audio Reactive Keys</strong><span data-i18n="animationAudioReactiveDesc">Convert an imported waveform into editable joint keyframes.</span></div><button type="button" class="animation-icon-button" data-action="close-audio-reactive" data-i18n-title="animationClose">×</button></div>
                     <div class="animation-dialog-fields">
-                        <label><span>Audio source</span><select class="animation-select" data-audio-source></select></label>
-                        <label><span>Target track</span><select class="animation-select" data-audio-target></select></label>
+                        <label><span data-i18n="animationAudioSource">Audio source</span><select class="animation-select" data-audio-source></select></label>
+                        <label><span data-i18n="animationTargetTrack">Target track</span><select class="animation-select" data-audio-target></select></label>
                         <div class="animation-dialog-field-grid">
-                            <label><span>Minimum</span><input type="number" step="0.01" data-audio-min></label>
-                            <label><span>Maximum</span><input type="number" step="0.01" data-audio-max></label>
-                            <label><span>Keys / second</span><input type="number" min="1" max="30" step="1" value="10" data-audio-rate></label>
-                            <label><span>Smoothing</span><input type="range" min="0" max="0.9" step="0.05" value="0.25" data-audio-smoothing></label>
+                            <label><span data-i18n="animationMinimum">Minimum</span><input type="number" step="0.01" data-audio-min></label>
+                            <label><span data-i18n="animationMaximum">Maximum</span><input type="number" step="0.01" data-audio-max></label>
+                            <label><span data-i18n="animationKeysPerSecond">Keys / second</span><input type="number" min="1" max="30" step="1" value="10" data-audio-rate></label>
+                            <label><span data-i18n="animationSmoothing">Smoothing</span><input type="range" min="0" max="0.9" step="0.05" value="0.25" data-audio-smoothing></label>
                         </div>
-                        <label class="animation-dialog-check"><input type="checkbox" data-audio-replace checked><span>Replace existing keys in the generated range</span></label>
+                        <label class="animation-dialog-check"><input type="checkbox" data-audio-replace checked><span data-i18n="animationReplaceKeys">Replace existing keys in the generated range</span></label>
                     </div>
-                    <div class="animation-dialog-footer"><span class="animation-dialog-note">The generated keys remain fully editable in Dope Sheet and Graph.</span><button type="button" class="animation-button animation-primary-action" data-action="generate-audio-reactive">Generate keys</button></div>
+                    <div class="animation-dialog-footer"><span class="animation-dialog-note" data-i18n="animationGeneratedEditable">The generated keys remain fully editable in Dope Sheet and Graph.</span><button type="button" class="animation-button animation-primary-action" data-action="generate-audio-reactive" data-i18n="animationGenerateKeys">Generate keys</button></div>
                 </div>
             </div>
-            <div class="animation-hint"><span data-i18n="animationHint">Double-click a track to add a keyframe.</span><span class="animation-shortcuts">Space Play · J/K Keys · ←/→ Frames · Ctrl/Cmd C/V · Delete · Ctrl/Cmd Z</span></div>
+            <div class="animation-hint"><span data-i18n="animationHint">Double-click a track to add a keyframe.</span><span class="animation-shortcuts" data-i18n="animationShortcuts">Space Play · J/K Keys · ←/→ Frames · Ctrl/Cmd C/V · Delete · Ctrl/Cmd Z</span></div>
             <div class="animation-toast" role="status" aria-live="polite" hidden></div>
         `;
         document.body.appendChild(this.root);
@@ -437,15 +440,15 @@ export class AnimationWorkspace {
             row.innerHTML = `
                 <span class="animation-input-track"><i></i><span data-input-track-name></span></span>
                 <select class="animation-select" data-input-axis>
-                    <option value="">Unmapped</option>
-                    ${Array.from({ length: 8 }, (_, index) => `<option value="${index}">Axis ${index + 1}</option>`).join('')}
-                    <option value="keys:a,d">Keys A / D</option>
-                    <option value="keys:w,s">Keys W / S</option>
-                    <option value="keys:arrowleft,arrowright">Keys ← / →</option>
-                    <option value="keys:arrowdown,arrowup">Keys ↓ / ↑</option>
+                    <option value="">${this.translate('animationUnmapped')}</option>
+                    ${Array.from({ length: 8 }, (_, index) => `<option value="${index}">${this.translate('animationAxisN', { index: index + 1 })}</option>`).join('')}
+                    <option value="keys:a,d">${this.translate('animationKeysPair', { keys: 'A / D' })}</option>
+                    <option value="keys:w,s">${this.translate('animationKeysPair', { keys: 'W / S' })}</option>
+                    <option value="keys:arrowleft,arrowright">${this.translate('animationKeysPair', { keys: '← / →' })}</option>
+                    <option value="keys:arrowdown,arrowup">${this.translate('animationKeysPair', { keys: '↓ / ↑' })}</option>
                 </select>
-                <label><input type="checkbox" data-input-invert ${mapping?.invert ? 'checked' : ''}> Invert</label>
-                <label>Smooth <input type="range" data-input-smoothing min="0" max="0.95" step="0.05" value="${mapping?.smoothing ?? 0.15}"></label>
+                <label><input type="checkbox" data-input-invert ${mapping?.invert ? 'checked' : ''}> ${this.translate('animationInvert')}</label>
+                <label>${this.translate('animationSmoothShort')} <input type="range" data-input-smoothing min="0" max="0.95" step="0.05" value="${mapping?.smoothing ?? 0.15}"></label>
             `;
             row.querySelector('[data-input-track-name]').textContent = track.name;
             row.querySelector('.animation-input-track i').style.background = /^#[0-9a-f]{6}$/i.test(track.color)
@@ -473,7 +476,9 @@ export class AnimationWorkspace {
             });
             this.inputMappings.appendChild(row);
         });
-        if (!tracks.length) this.inputMappings.innerHTML = '<div class="animation-dialog-empty">Load a robot with movable joints first.</div>';
+        if (!tracks.length) {
+            this.inputMappings.innerHTML = `<div class="animation-dialog-empty">${this.translate('animationLoadRobotFirst')}</div>`;
+        }
     }
 
     openAudioReactive() {
@@ -483,7 +488,7 @@ export class AnimationWorkspace {
         });
         const targetTracks = this.store.activeClip.tracks.filter((track) => track.type === 'joint' && !track.locked);
         if (!audioTracks.length || !targetTracks.length) {
-            window.alert('Import an audio file and select a movable joint track first.');
+            window.alert(this.translate('animationImportAudioFirst'));
             return;
         }
         const selectedTrackId = [...this.selection.trackIds]
@@ -606,8 +611,8 @@ export class AnimationWorkspace {
         const gamepad = [...(navigator.getGamepads?.() || [])].find(Boolean);
         if (this.inputStatus) {
             this.inputStatus.textContent = gamepad
-                ? `${gamepad.id} · ${gamepad.axes.length} axes · ${gamepad.buttons.length} buttons`
-                : 'Keyboard ready · no gamepad detected';
+                ? `${gamepad.id} · ${gamepad.axes.length} ${this.translate('animationAxes')} · ${gamepad.buttons.length} ${this.translate('animationButtons')}`
+                : this.translate('animationKeyboardReady');
             this.inputStatus.classList.toggle('connected', Boolean(gamepad));
         }
         if (this.visible && this.model) {
@@ -831,7 +836,7 @@ export class AnimationWorkspace {
                 localStorage.setItem(this.storageKey(), this.store.serialize());
                 this.saveStatus.textContent = window.i18n?.t('saved') || 'Saved';
             } catch (error) {
-                this.saveStatus.textContent = 'Save failed';
+                this.saveStatus.textContent = this.translate('animationSaveFailed');
                 console.warn('Animation autosave failed:', error);
             }
         }, 300);
@@ -875,6 +880,12 @@ export class AnimationWorkspace {
         window.i18n?.updatePageLanguage();
         this.syncAllControls();
         this.setRobotAvailable(this.robotAvailable);
+        if (this.toggleButton) this.toggleButton.title = this.translate('animationEditor');
+        if (this.guideVisible) this.updateGuide();
+        if (this.inputDialog && !this.inputDialog.hidden) this.renderInputMappings();
+        // 画布文字不经过 DOM，需要重绘
+        this.timeline?.draw?.();
+        this.graph?.draw?.();
     }
 
     translate(key, replacements = {}) {
@@ -1148,7 +1159,7 @@ export class AnimationWorkspace {
         if (items.length === 1) {
             this.selectionLabel.textContent = `${single.track.name} · ${this.formatTime(single.keyframe.timeMs)}`;
         } else if (items.length > 1) {
-            this.selectionLabel.textContent = `${items.length} keys`;
+            this.selectionLabel.textContent = this.translate('animationKeyCount', { count: items.length });
         } else if (this.selection.trackIds.size) {
             const names = [...this.selection.trackIds]
                 .map((trackId) => this.store.getTrackById(trackId)?.name)
@@ -1156,7 +1167,7 @@ export class AnimationWorkspace {
             this.selectionLabel.textContent = names.join(', ') || '—';
         } else if (this.selection.markerId) {
             const marker = this.store.activeClip.markers.find((item) => item.id === this.selection.markerId);
-            this.selectionLabel.textContent = marker?.name || 'Marker';
+            this.selectionLabel.textContent = marker?.name || this.translate('addMarker');
         } else {
             this.selectionLabel.textContent = '—';
         }
@@ -1217,11 +1228,14 @@ export class AnimationWorkspace {
         const locked = this.graph.toggleSelectionLock();
         const button = this.root.querySelector('[data-action="lock-graph"]');
         button.classList.toggle('active', locked);
-        button.title = locked ? 'Unlock displayed curves' : 'Lock displayed curves to the current selection';
+        button.title = this.translate(locked ? 'animationUnlockGraph' : 'animationLockGraph');
     }
 
     createClip() {
-        const name = window.prompt(window.i18n?.t('animationName') || 'Animation name', `Animation ${this.store.project.clips.length + 1}`);
+        const name = window.prompt(
+            this.translate('animationName'),
+            this.translate('animationDefaultName', { index: this.store.project.clips.length + 1 })
+        );
         if (!name?.trim()) return;
         this.store.createAnimation(name.trim());
         this.playback.seek(0);
@@ -1336,19 +1350,22 @@ export class AnimationWorkspace {
 
     createEventTrack(kind) {
         const defaultNames = {
-            trigger: 'Trigger',
-            boolean: 'On / Off',
-            number: 'Value Event',
-            color: 'Color Event'
+            trigger: this.translate('animationEventTrigger'),
+            boolean: this.translate('animationEventOnOff'),
+            number: this.translate('animationEventValue'),
+            color: this.translate('animationEventColorEvent')
         };
-        const name = window.prompt('Event track name', defaultNames[kind] || 'Event');
+        const name = window.prompt(this.translate('animationEventTrackName'), defaultNames[kind] || '');
         if (!name?.trim()) return;
         const track = this.store.addEventTrack(name.trim(), kind);
         if (track) this.selection.selectTrack(track.id);
     }
 
     capturePose() {
-        const name = window.prompt('Pose name', `Pose ${(this.store.project.poseAssets?.length || 0) + 1}`);
+        const name = window.prompt(
+            this.translate('animationPoseName'),
+            this.translate('animationPoseDefault', { index: (this.store.project.poseAssets?.length || 0) + 1 })
+        );
         if (!name?.trim()) return;
         const pose = this.store.savePose(name.trim(), this.poseController.getPose());
         if (pose) this.poseSelect.value = pose.id;
@@ -1543,7 +1560,7 @@ export class AnimationWorkspace {
             element.src = url;
             const durationMs = await new Promise((resolve, reject) => {
                 element.onloadedmetadata = () => resolve(Number.isFinite(element.duration) ? element.duration * 1000 : 0);
-                element.onerror = () => reject(new Error('Unsupported media file'));
+                element.onerror = () => reject(new Error(this.translate('animationUnsupportedMedia')));
             });
             let waveform = [];
             if (kind === 'audio') {
@@ -1587,7 +1604,7 @@ export class AnimationWorkspace {
             this.timeline.draw();
         } catch (error) {
             console.error('Failed to import media:', error);
-            window.alert(`Media import failed: ${error.message}`);
+            window.alert(this.translate('animationMediaImportFailed', { message: error.message }));
         } finally {
             this.mediaFileInput.value = '';
         }
@@ -1610,7 +1627,7 @@ export class AnimationWorkspace {
             this.showToast(this.translate('animationImported', { name: this.store.activeClip.name }));
         } catch (error) {
             console.error('Failed to import animation:', error);
-            window.alert(`Animation import failed: ${error.message}`);
+            window.alert(this.translate('animationImportFailed', { message: error.message }));
         } finally {
             this.suspendAutosave = false;
             this.fileInput.value = '';

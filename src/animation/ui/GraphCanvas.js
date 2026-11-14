@@ -395,7 +395,11 @@ export class GraphCanvas {
         if (!this.displayedTracks.length) {
             context.fillStyle = colors.muted;
             context.font = '12px system-ui, sans-serif';
-            context.fillText('Select one or more tracks to edit curves', this.labelWidth + 18, this.rulerHeight + 24);
+            context.fillText(
+                window.i18n?.t?.('animationGraphEmpty') || 'Select one or more tracks to edit curves',
+                this.labelWidth + 18,
+                this.rulerHeight + 24
+            );
         }
 
         this.displayedTracks.forEach((track) => {
