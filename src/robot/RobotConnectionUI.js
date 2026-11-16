@@ -625,6 +625,10 @@ export class RobotConnectionUI {
             this._syncSuspended = false;
             this._lastSentPose = null;
             this.appendLog('system', `轨迹 ${msg.trajectoryId} 执行完成。`);
+            // 轨迹结束真机会落到 execute/idle，继续同步前先回到 follow 模式
+            if (this.syncControlEnabled) {
+                Promise.resolve(this.client.setMode?.('follow')).catch(() => {});
+            }
         };
 
         this.client.onRobotEvent = (event) => {

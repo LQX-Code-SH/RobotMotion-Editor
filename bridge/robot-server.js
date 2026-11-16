@@ -226,6 +226,7 @@ async function handleMessage(ws, msg) {
                 return;
             }
             adapter.setMode(msg.mode);
+            broadcast({ type: 'ack', for: 'set_mode', accepted: true, mode: msg.mode });
             break;
         }
 

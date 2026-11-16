@@ -580,7 +580,8 @@ class DexBridge:
             if not ok:
                 await self.send(ws, {'type': 'error', 'code': 'bad_mode', 'message': reason})
             else:
-                await self.broadcast({'type': 'ack', 'for': 'set_mode', 'accepted': True})
+                await self.broadcast({'type': 'ack', 'for': 'set_mode', 'accepted': True,
+                                      'mode': msg.get('mode')})
             return
 
         if kind == 'enable':
@@ -594,6 +595,10 @@ class DexBridge:
             return
 
         if kind == 'joint_targets':
+            if self.robot is not None and self.robot.mode != 'follow':
+                await self.send(ws, {'type': 'error', 'code': 'wrong_mode',
+                                     'message': '请先切换到 follow 模式'})
+                return
             result = self.robot.set_joint_targets(msg.get('targets') or {})
             await self.send(ws, {'type': 'ack', 'for': 'joint_targets', **result})
             return
