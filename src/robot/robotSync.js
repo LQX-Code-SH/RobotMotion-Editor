@@ -2,11 +2,20 @@
  * 视口 → 真机同步控制的纯逻辑（不碰 DOM / WebSocket，便于单测）。
  */
 
-/** 同步下发节流间隔：约 12.5Hz，避免高频占领控制通道。 */
-export const SYNC_SEND_INTERVAL_MS = 80;
+/**
+ * 同步下发节流间隔：50Hz，与桥接控制 tick 对齐。
+ * 拖动末端时 80ms 抽样会把中间 IK 位姿丢掉，导致真机单关节轨迹与模型明显不同。
+ */
+export const SYNC_SEND_INTERVAL_MS = 20;
+
+/** 手部独立通道的流式下发间隔：20Hz（手驱动串口带宽有限，无需 50Hz）。 */
+export const HAND_STREAM_INTERVAL_MS = 50;
 
 /** 关节变化阈值（rad / m），小于该值不重复下发。 */
 export const SYNC_EPSILON = 1e-4;
+
+/** 手部归一化目标的变化阈值（0..1），小于该值不重复下发。 */
+export const HAND_SYNC_EPSILON = 0.004;
 
 /**
  * 从整机位姿中筛出可下发的关节。

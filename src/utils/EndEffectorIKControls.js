@@ -62,6 +62,21 @@ export class EndEffectorIKControls {
         this._pressedJog = new Set();
         this._jogTimer = null;
 
+        // 真机同步控制下的末端限速：拖拽目标以有限速度追随鼠标，
+        // 让模型与真机沿同一条受限轨迹运动（平时编辑不启用）。
+        this.teleopLimited = false;
+        this.teleopMaxSpeed = 0.3;         // m/s
+        this.teleopMaxAngularSpeed = 1.5;  // rad/s
+        this._limitedPosition = new THREE.Vector3();
+        this._limitedQuaternion = new THREE.Quaternion();
+        this._limitRaf = null;
+        this._limitLastAt = 0;
+        this._limitTempPos = new THREE.Vector3();
+        this._limitTempQuat = new THREE.Quaternion();
+        this._limitDelta = new THREE.Vector3();
+        this._pendingEndDrag = false;
+        this._endDragAt = 0;
+
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onJogKeyDown = this._onJogKeyDown.bind(this);
         this._onJogKeyUp = this._onJogKeyUp.bind(this);
@@ -78,6 +93,8 @@ export class EndEffectorIKControls {
     /** 模型切换：重建可控末端链。 */
     setModel(model) {
         const previousModel = this.model;
+        this._pendingEndDrag = false;
+        this._stopLimitLoop();
         this.model = model || null;
         this.chains = this.model ? selectArmChains(buildChains(this.model)) : [];
         this.activeIndex = 0;
@@ -126,6 +143,8 @@ export class EndEffectorIKControls {
         } else {
             // 关闭末端控制时一并退出键盘 jog，避免残留下发
             if (this.keyboardEnabled) this.setKeyboardEnabled(false);
+            this._pendingEndDrag = false;
+            this._stopLimitLoop();
             this.transform?.detach();
             this.sceneManager.controls && (this.sceneManager.controls.enabled = true);
         }
@@ -377,10 +396,117 @@ export class EndEffectorIKControls {
         if (this.sceneManager.controls) this.sceneManager.controls.enabled = false;
         this.preDragValues = readChainValues(chain);
         this.dragErrorBudget = 0;
+        this._pendingEndDrag = false;
+
+        if (this.teleopLimited) {
+            this.proxy.getWorldPosition(this._limitedPosition);
+            this.proxy.getWorldQuaternion(this._limitedQuaternion);
+            this._startLimitLoop();
+        }
+    }
+
+    /**
+     * 真机同步控制开关：开启后拖拽目标按有限末端速度追随鼠标。
+     * @param {boolean} enabled
+     * @param {{maxSpeed?: number, maxAngularSpeed?: number}} [options] m/s、rad/s
+     */
+    setTeleopLimited(enabled, { maxSpeed = 0.3, maxAngularSpeed = 1.5 } = {}) {
+        this.teleopLimited = Boolean(enabled);
+        if (Number.isFinite(maxSpeed)) this.teleopMaxSpeed = Math.max(0.02, maxSpeed);
+        if (Number.isFinite(maxAngularSpeed)) this.teleopMaxAngularSpeed = Math.max(0.05, maxAngularSpeed);
+        if (!this.teleopLimited) {
+            this._pendingEndDrag = false;
+            this._stopLimitLoop();
+        }
+    }
+
+    _stopLimitLoop() {
+        if (!this._limitRaf) return;
+        cancelAnimationFrame(this._limitRaf);
+        this._limitRaf = null;
+    }
+
+    /** 按帧推进“受限目标”，并对其解 IK。 */
+    _startLimitLoop() {
+        this._stopLimitLoop();
+        this._limitLastAt = performance.now();
+        const tick = () => {
+            this._limitRaf = requestAnimationFrame(tick);
+            if (!this.activeChain) return;
+
+            const now = performance.now();
+            const dt = Math.min(0.05, Math.max(0, (now - this._limitLastAt) / 1000));
+            this._limitLastAt = now;
+            if (dt <= 0) return;
+
+            const translateMode = this.mode === MODE_TRANSLATE;
+            let moved = false;
+
+            this.proxy.getWorldPosition(this._limitTempPos);
+            if (translateMode) {
+                this._limitDelta.subVectors(this._limitTempPos, this._limitedPosition);
+                const distance = this._limitDelta.length();
+                if (distance > 1e-5) {
+                    const maxStep = this.teleopMaxSpeed * dt;
+                    if (distance <= maxStep) this._limitedPosition.copy(this._limitTempPos);
+                    else this._limitedPosition.addScaledVector(this._limitDelta, maxStep / distance);
+                    moved = true;
+                }
+            } else {
+                this._limitedPosition.copy(this._limitTempPos);
+            }
+
+            this.proxy.getWorldQuaternion(this._limitTempQuat);
+            if (!translateMode) {
+                const angle = this._limitedQuaternion.angleTo(this._limitTempQuat);
+                if (angle > 1e-5) {
+                    const maxAngle = this.teleopMaxAngularSpeed * dt;
+                    this._limitedQuaternion.slerp(this._limitTempQuat, Math.min(1, maxAngle / angle));
+                    moved = true;
+                }
+            } else {
+                this._limitedQuaternion.copy(this._limitTempQuat);
+            }
+
+            if (moved || this._pendingEndDrag) this._solveToLimitedTarget();
+
+            if (this._pendingEndDrag) {
+                const converged = this._limitedPosition.distanceToSquared(this._limitTempPos) < 1e-8;
+                if (converged || now - this._endDragAt > 1500) this._finishDrag();
+            }
+        };
+        this._limitRaf = requestAnimationFrame(tick);
+    }
+
+    /** 对“受限目标”解一次 IK（与 _solveToTarget 同参数口径）。 */
+    _solveToLimitedTarget() {
+        const chain = this.activeChain;
+        if (!chain) return;
+        const translateMode = this.mode === MODE_TRANSLATE;
+        const result = solveChain({
+            chain,
+            targetPosition: this._limitedPosition,
+            targetQuaternion: translateMode ? null : this._limitedQuaternion,
+            applyValues: (values) => this._applyValues(chain, values),
+            posWeight: translateMode ? 1 : 0.35,
+            rotWeight: translateMode ? 0 : 1,
+            maxIterations: 20,
+            maxStep: translateMode ? 0.12 : 0.18,
+            damping: 0.02,
+            ignoreLimits: Boolean(this.sceneManager.ignoreLimits),
+            lockedJointNames: Array.from(this.lockedWaistJoints),
+            jacobianBuffer: this._jacobianBuffer
+        });
+        this.lastResult = result;
+        this.dragErrorBudget = Math.max(this.dragErrorBudget, result.positionError || 0);
+        this._updateHud();
+        this.sceneManager.redraw();
     }
 
     _handleGizmoChange() {
         if (!this.enabled || !this.activeChain || !this.transform?.dragging) return;
+        // 遥操作限速：目标由 _startLimitLoop 按帧推进，这里不再直接解算
+        if (this.teleopLimited) return;
         const translateMode = this.mode === MODE_TRANSLATE;
         this._solveToTarget({
             posWeight: translateMode ? 1 : 0.35,
@@ -453,12 +579,24 @@ export class EndEffectorIKControls {
     }
 
     _endDrag() {
-        const chain = this.activeChain;
         this._lastGizmoAt = performance.now();
         if (this.sceneManager.controls) this.sceneManager.controls.enabled = true;
-        if (!chain) return;
+        if (!this.activeChain) return;
 
-        this._commitJointChanges(chain);
+        if (this.teleopLimited && this._limitRaf) {
+            // 受限目标可能还没追到鼠标位置：收敛后再 commit，避免拖动被截断
+            this._pendingEndDrag = true;
+            this._endDragAt = performance.now();
+            return;
+        }
+        this._finishDrag();
+    }
+
+    _finishDrag() {
+        const chain = this.activeChain;
+        this._pendingEndDrag = false;
+        this._stopLimitLoop();
+        if (chain) this._commitJointChanges(chain);
 
         // 目标点回到真实末端位姿，避免不可达时 gizmo 越飘越远
         this._syncProxy();

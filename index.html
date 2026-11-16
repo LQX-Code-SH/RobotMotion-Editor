@@ -1178,6 +1178,59 @@
             opacity: 0.6;
         }
 
+        /* 功能说明默认收起，由各分区标题后的「?」按钮切换 */
+        .robot-panel-content .robot-hint {
+            display: none;
+        }
+
+        .robot-section.robot-help-on .robot-hint {
+            display: block;
+        }
+
+        .robot-label-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 行内「?」：跟在某个开关后面，只影响本分区的说明 */
+        .robot-help-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .robot-help-row > .robot-follow-row {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .robot-help-toggle {
+            flex: 0 0 auto;
+            width: 16px;
+            height: 16px;
+            padding: 0;
+            border-radius: 50%;
+            border: 1px solid var(--border-color, #ccc);
+            background: transparent;
+            color: inherit;
+            font-size: 11px;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0.55;
+        }
+
+        .robot-help-toggle:hover {
+            opacity: 1;
+        }
+
+        .robot-help-toggle[aria-pressed="true"] {
+            background: #FFD60A;
+            border-color: #FFD60A;
+            color: #000;
+            opacity: 1;
+        }
+
         .robot-connection-info {
             display: flex;
             flex-direction: column;
@@ -1220,6 +1273,38 @@
             gap: 6px;
             font-size: 12px;
             cursor: pointer;
+        }
+
+        .robot-motion-row {
+            align-items: center;
+        }
+
+        .robot-motion-label {
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0.8;
+        }
+
+        #robot-motion-speed {
+            flex: 0 0 72px;
+            width: 72px;
+        }
+
+        .robot-motion-unit {
+            font-size: 11px;
+            opacity: 0.6;
+            white-space: nowrap;
+        }
+
+        .robot-home-info {
+            flex: 1;
+            min-width: 0;
+            align-self: center;
+            font-size: 11px;
+            opacity: 0.6;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* 会驱动真机的开关：勾选后高亮提醒 */
@@ -4159,8 +4244,11 @@
                     <button class="panel-close-btn" data-panel="floating-robot-panel">✕</button>
                 </div>
                 <div class="floating-panel-content robot-panel-content">
-                    <div class="robot-section">
-                        <label class="robot-label">设备地址</label>
+                    <div class="robot-section" data-help-group="address">
+                        <div class="robot-label-row">
+                            <label class="robot-label">设备地址</label>
+                            <button type="button" class="robot-help-toggle" data-help-key="address" title="显示说明" aria-pressed="false">?</button>
+                        </div>
                         <div class="robot-row">
                             <input type="text" id="robot-device-address" class="robot-input" placeholder="192.168.41.2" />
                         </div>
@@ -4171,34 +4259,55 @@
                         <div class="robot-hint">填机器人 IP 直连（控制口 8081）；也可填操作站地址 http://主机:8090 经网关发现。</div>
                     </div>
 
-                    <div class="robot-section">
+                    <div class="robot-section" data-help-group="status">
                         <label class="robot-label">连接状态</label>
                         <div id="robot-connection-info" class="robot-connection-info">
                             <span class="robot-status-disconnected">未连接</span>
                         </div>
                         <div id="robot-telemetry" class="robot-telemetry">暂无遥测数据</div>
-                        <label class="robot-follow-row">
-                            <input type="checkbox" id="robot-ghost-toggle" checked />
-                            <span>视口同步（真机姿态实时映射，以幽灵层显示）</span>
-                        </label>
+                        <div class="robot-help-row">
+                            <label class="robot-follow-row">
+                                <input type="checkbox" id="robot-ghost-toggle" checked />
+                                <span>视口同步（真机姿态实时映射，以幽灵层显示）</span>
+                            </label>
+                            <button type="button" class="robot-help-toggle" data-help-key="status" title="显示说明" aria-pressed="false">?</button>
+                        </div>
                         <label class="robot-follow-row robot-sync-row">
                             <input type="checkbox" id="robot-sync-control-toggle" />
                             <span>真机同步控制（视口 → 真机）</span>
                         </label>
-                        <div class="robot-hint">「视口同步」用半透明幽灵层实时显示真机实际姿态，不改动主模型；「真机同步控制」把视口里的关节/末端操作以约 12.5Hz 下发到真机。两者可同时开启。</div>
+                        <div class="robot-hint">「视口同步」用半透明幽灵层实时显示真机实际姿态（含手指），不改动主模型；「真机同步控制」把视口里的关节/末端操作以 50Hz 下发到真机（手指 20Hz，按归一化走独立通道）。两者可同时开启。</div>
                     </div>
 
-                    <div class="robot-section">
-                        <label class="robot-label">动作下发</label>
-                        <label class="robot-follow-row">
-                            <input type="checkbox" id="robot-keyboard-jog-toggle" />
-                            <span>键盘控制（WASD 平移 · Q/E 升降 · 1-6 旋转）</span>
-                        </label>
+                    <div class="robot-section" data-help-group="action">
+                        <div class="robot-help-row">
+                            <label class="robot-follow-row">
+                                <input type="checkbox" id="robot-keyboard-jog-toggle" />
+                                <span>键盘控制（WASD 平移 · Q/E 升降 · 1-6 旋转）</span>
+                            </label>
+                            <button type="button" class="robot-help-toggle" data-help-key="action" title="显示说明" aria-pressed="false">?</button>
+                        </div>
                         <div class="robot-hint">以机器人基座坐标系平移（+X 前 / +Y 左 / +Z 上）；绕末端工具轴旋转：1/2 横滚、3/4 俯仰、5/6 偏航。按住连续移动，松开后记录一次关键帧；配合「真机同步控制」可实时驱动真机。</div>
+                        <label class="robot-label">动作下发</label>
+                        <div class="robot-row robot-motion-row">
+                            <label class="robot-motion-label" for="robot-motion-speed">运动速度</label>
+                            <input type="number" id="robot-motion-speed" class="robot-input" value="20" min="5" max="45" step="5" />
+                            <span class="robot-motion-unit">°/s（峰值）</span>
+                        </div>
                         <div class="robot-row">
-                            <button id="robot-send-pose-btn" class="robot-btn">发送当前位姿</button>
-                            <button id="robot-home-btn" class="robot-btn">真机回零</button>
+                            <button id="robot-send-pose-btn" class="robot-btn" title="下发视口上肢（双臂 + 腰 + 头 + 手部）">发送当前位姿</button>
+                            <button id="robot-home-btn" class="robot-btn" title="平滑回到零点">真机回零</button>
                             <button id="robot-read-pose-btn" class="robot-btn" disabled title="把真机当前姿态读取到 3D 视口">读取真机姿态</button>
+                        </div>
+                        <div class="robot-row">
+                            <button id="robot-set-home-btn" class="robot-btn" title="把真机当前姿态（双臂+腰+头+手）设为零点">重置零点</button>
+                            <span id="robot-home-info" class="robot-home-info">零点：内置采集值</span>
+                        </div>
+                        <div class="robot-hint">
+                            下发范围 = 视口上肢：双臂 + 腰 + 头（joint_targets）+ 手部主动关节（独立通道）；腿由运控独占、不参与。<br />
+                            两个按钮都会读取真机当前角位置做有限速插值（smoothstep，首尾速度为 0），不会阶跃跳变。<br />
+                            「重置零点」把真机当前姿态设为回零目标（按机型持久化，默认已写入本机采集值）；「真机回零」再平滑回到该零点。<br />
+                            提醒：动作期间保持页面在前台，请勿关闭或断网；急停仍在遥控器（双击 C 键）；手部按 URDF 限位归一化，首次使用请先小幅核对。
                         </div>
                         <div class="robot-row">
                             <button id="robot-stop-btn" class="robot-btn">停止</button>

@@ -26,6 +26,7 @@ export class RobotBridgeClient {
         this.onStatus = null;
         this.onTrajectoryDone = null;
         this.onRobotEvent = null;
+        this.onBridgeError = null;  // 协议错误（wrong_mode / not enabled / estop…）
         this.onCameras = null;     // 相机清单（cameras）
         this.onCameraFrame = null; // 相机帧（camera_frame，JPEG base64）
         this.onMessage = null;     // 兜底：所有消息
@@ -135,6 +136,7 @@ export class RobotBridgeClient {
                 break;
             case 'error':
                 console.warn(`[robot-bridge] error from robot: ${msg.code}: ${msg.message}`);
+                this.onBridgeError?.(msg);
                 break;
         }
         this.onMessage?.(msg);
@@ -164,6 +166,14 @@ export class RobotBridgeClient {
     sendJointTargets(targets) { return this.request('joint_targets', { targets }); }
 
     /**
+     * follow 单步目标，不等待 ack（50Hz 流式专用）。
+     * request() 以消息 type 作为 pending key，高频并发会互相覆盖。
+     */
+    sendJointTargetsNoAck(targets) {
+        this._send({ type: 'joint_targets', targets });
+    }
+
+    /**
      * 下发关键帧轨迹。
      * @param {Array<{t:number, targets:Object<string,number>}>} frames
      * @param {number} fps 采样帧率
@@ -173,6 +183,14 @@ export class RobotBridgeClient {
         const trajectoryId = `traj-${Date.now()}-${this._seq++}`;
         return this.request('play_trajectory', { trajectoryId, frames, fps, loop }, 10000)
             .then(ack => ({ trajectoryId, ...ack }));
+    }
+
+    /**
+     * 手部归一化目标（0..1）。高频时序下发（约 20Hz），
+     * 不等 ack，避免每帧占用 request 队列；桥接仍会回 ack，无人认领即丢弃。
+     */
+    sendHandTargets(side, values) {
+        this._send({ type: 'hand_targets', side, values });
     }
 
     stop() { return this.request('stop'); }

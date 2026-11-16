@@ -59,10 +59,14 @@ def _status_qos(depth=10):
 class DexRobot:
     """关节组控制与状态缓存。"""
 
-    def __init__(self, node, rate_hz=50.0, max_joint_speed=1.2, logger=print):
+    def __init__(self, node, rate_hz=50.0, max_joint_speed=1.2,
+                 spd=DEFAULT_SPD, cur=DEFAULT_CUR, logger=print):
         self.node = node
         self.rate_hz = float(rate_hz)
         self.max_joint_speed = float(max_joint_speed)
+        # 驱动侧参数：实测 spd 在位置模式下**生效**（0.3 rad/s 阶跃 0.3rad 用时 0.96s）
+        self.spd = float(spd)
+        self.cur = float(cur)
         self.log = logger
 
         self.enabled = False
@@ -128,7 +132,8 @@ class DexRobot:
         self._setup_estop_sub()
         period = 1.0 / self.rate_hz
         self._timer = self.node.create_timer(period, self._tick)
-        self.log(f'[dex] 关节控制已就绪：{self.rate_hz:.0f}Hz，可控制组 {CONTROLLABLE_GROUPS}')
+        self.log(f'[dex] 关节控制已就绪：{self.rate_hz:.0f}Hz，可控制组 {CONTROLLABLE_GROUPS}，'
+                 f'spd={self.spd:g} rad/s，cur={self.cur:g} A')
 
     def _setup_estop_sub(self):
         """急停状态订阅；消息类缺失时降级为无急停守卫并告警。"""
@@ -236,8 +241,9 @@ class DexRobot:
             ctrl = self._motor_ctrl_cls()
             ctrl.name = sdk_id
             ctrl.pos = float(pos)
-            ctrl.spd = DEFAULT_SPD
-            ctrl.cur = WAIST_YAW_MIN_CUR if (group == 'waist' and sdk_id == 33) else DEFAULT_CUR
+            ctrl.spd = self.spd
+            ctrl.cur = (max(self.cur, WAIST_YAW_MIN_CUR)
+                        if (group == 'waist' and sdk_id == 33) else self.cur)
             ctrl.kp = 0.0
             ctrl.kd = 0.0
             ctrl.tor = 0.0
@@ -404,6 +410,11 @@ class DexRobot:
     def get_joint_states(self):
         with self._lock:
             return dict(self._state)
+
+    def snapshot_targets(self):
+        """当前原始目标（rad，未经过斜坡），调试跟踪误差用。"""
+        with self._lock:
+            return dict(self._targets)
 
     def state_age(self):
         with self._lock:

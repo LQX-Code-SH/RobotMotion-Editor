@@ -33,7 +33,9 @@ JOINT_TABLE = {
     ],
     'head': [
         (1, 'head_yaw', 'head_yaw_joint', -1.0472, 1.0472),
-        (2, 'head_pitch', 'head_pitch_joint', -0.2618, 1.0123),
+        # head_pitch 上限按厂商 demo 03_head_control 的电机限位取 50°（0.8727 rad）；
+        # SDK joints.yaml / URDF 写的是 58°（1.0123），但与真机实际行程不一致，故收紧到 50°。
+        (2, 'head_pitch', 'head_pitch_joint', -0.2618, 0.8727),
     ],
     'waist': [
         (31, 'waist_pitch', 'waist_pitch_joint', -0.5236, 0.8727),

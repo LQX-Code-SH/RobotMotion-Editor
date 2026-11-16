@@ -76,8 +76,14 @@ def parse_args(argv=None):
     parser.add_argument('--rate', type=float, default=50.0, help='关节命令下发频率 Hz')
     parser.add_argument('--telemetry-hz', type=float, default=20.0)
     parser.add_argument('--max-speed', type=float, default=1.2, help='关节目标斜坡最大角速度 rad/s')
+    parser.add_argument('--spd', type=float, default=0.3,
+                        help='驱动侧速度参数 rad/s（位置模式下生效；实测 0.3 → 0.29 rad/s）')
+    parser.add_argument('--cur', type=float, default=10.0,
+                        help='驱动侧电流限幅 A（厂商头/腰 demo 用 40）')
     parser.add_argument('--camera-width', type=int, default=640)
     parser.add_argument('--dry-run', action='store_true', help='不连接 ROS，仅验证协议')
+    parser.add_argument('--trace', action='store_true',
+                        help='status 里附带原始关节目标（调试跟踪误差，只读）')
     return parser.parse_args(argv)
 
 
@@ -262,6 +268,10 @@ class FakeDexRobot:
         with self._lock:
             return {name: dict(value) for name, value in self._state.items()}
 
+    def snapshot_targets(self):
+        with self._lock:
+            return dict(self._targets)
+
     def state_age(self):
         return 0.0
 
@@ -429,6 +439,8 @@ class DexBridge:
             self.ros_node,
             rate_hz=self.args.rate,
             max_joint_speed=self.args.max_speed,
+            spd=self.args.spd,
+            cur=self.args.cur,
             logger=self.log,
         )
         self.hands = create_hands(self.ros_node, self.args.hand, self.log)
@@ -504,6 +516,8 @@ class DexBridge:
         }
         if hands is not None:
             payload['hands'] = hands
+        if self.args.trace and self.robot is not None:
+            payload['targets'] = self.robot.snapshot_targets()
         return payload
 
     # ---------- WS ----------
@@ -809,6 +823,9 @@ def main():
     # Future 上，收到信号也不会退出，进程会忽略 kill。这里在桥接初始化之后
     # 覆盖为抛出 KeyboardInterrupt，确保部署器的 stop/restart 能正常生效。
     def _on_terminate(signum, frame):
+        # rclpy.shutdown() 偶发卡住会让进程变成"僵尸发布者"（端口已释放、
+        # 定时器仍在以旧参数发 /arm/cmd），3s 后强制退出兜底。
+        threading.Timer(3.0, lambda: os._exit(0)).start()
         raise KeyboardInterrupt
 
     try:
