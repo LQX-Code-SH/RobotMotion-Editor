@@ -1,4 +1,5 @@
 import { RobotBridgeClient, scanDevices } from './RobotBridgeClient.js';
+import { RobotCameraUI } from './RobotCameraUI.js';
 import { evaluateClip } from '../animation/core/BezierEvaluator.js';
 import { filterSyncPose, hasPoseChanged, SYNC_SEND_INTERVAL_MS } from './robotSync.js';
 
@@ -55,6 +56,10 @@ export class RobotConnectionUI {
 
     init() {
         this._bindPanel();
+        this.cameraUI = new RobotCameraUI({
+            client: this.client,
+            log: (level, message) => this.appendLog(level, message)
+        });
         this._unsubscribePose = this.poseController?.subscribe?.((event) => this._handlePoseEvent(event));
         this.appendLog('system', '真机控制模块就绪。填写设备地址后点“连接”。');
 
@@ -380,8 +385,30 @@ export class RobotConnectionUI {
         this.appendLog('system', `连接成功：${welcome.displayName || welcome.name}-${welcome.id}`
             + `（${welcome.model}，${welcome.joints?.length || 0} 关节，适配器：${welcome.adapter}）`);
         this.validateJointMatch();
+        this.cameraUI?.setConnected(true, welcome.cameras);
         // 面板不再提供使能按钮：连接后自动使能，失败只告警不阻断连接
         this._autoEnable();
+        // 连接后自动读取一次真机姿态，保证 3D 视口与实际机器人一致
+        this._autoSyncPoseOnce();
+    }
+
+    /**
+     * 连接成功后自动读取一次真机姿态（等同点击「读取真机姿态」）。
+     * 首帧遥测通常在 50~300ms 内到达，这里最多等 3s；
+     * 期间若用户已开启流式同步则跳过，避免覆盖同步控制。
+     */
+    async _autoSyncPoseOnce() {
+        const deadline = Date.now() + 3000;
+        while (Date.now() < deadline) {
+            if (!this.client.connected || !this.device) return;
+            if (this.syncControlEnabled) return;
+            if (this.lastJointStates && Object.keys(this.lastJointStates).length) {
+                this.syncPoseFromRobot();
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        this.appendLog('warning', '连接成功但 3s 内未收到真机遥测，已跳过自动读取姿态。');
     }
 
     async _autoEnable() {
@@ -409,6 +436,7 @@ export class RobotConnectionUI {
         this.robotGhost?.clear();
         this.lastJointStates = null;
         this.device = null;
+        this.cameraUI?.setConnected(false);
         this.client.close();
         this._setState('idle');
         if (wasConnected) this.appendLog('system', '已断开连接。');
@@ -606,6 +634,7 @@ export class RobotConnectionUI {
             this.robotGhost?.clear();
             this.lastJointStates = null;
             this.device = null;
+            this.cameraUI?.setConnected(false);
             this._setState('idle');
             this.appendLog('system', '与机器人的连接已断开。');
         };

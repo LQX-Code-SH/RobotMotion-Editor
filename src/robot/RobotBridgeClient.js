@@ -16,6 +16,7 @@ export class RobotBridgeClient {
         this.connected = false;
         this._seq = 0;
         this._pendingAck = new Map(); // for -> {resolve, timer}
+        this._cameraWaiters = new Set(); // 相机 ack 按 camera 精确匹配
 
         // 事件回调（由上层设置）
         this.onOpen = null;
@@ -25,6 +26,8 @@ export class RobotBridgeClient {
         this.onStatus = null;
         this.onTrajectoryDone = null;
         this.onRobotEvent = null;
+        this.onCameras = null;     // 相机清单（cameras）
+        this.onCameraFrame = null; // 相机帧（camera_frame，JPEG base64）
         this.onMessage = null;     // 兜底：所有消息
     }
 
@@ -103,6 +106,13 @@ export class RobotBridgeClient {
                 this.onStatus?.(msg);
                 break;
             case 'ack': {
+                // 相机 ack 先按 camera 匹配，避免并发探测时串台
+                for (const waiter of [...this._cameraWaiters]) {
+                    if (waiter(msg)) {
+                        this._cameraWaiters.delete(waiter);
+                        break;
+                    }
+                }
                 const pending = this._pendingAck.get(msg.for);
                 if (pending) {
                     clearTimeout(pending.timer);
@@ -116,6 +126,12 @@ export class RobotBridgeClient {
                 break;
             case 'robot_event':
                 this.onRobotEvent?.(msg);
+                break;
+            case 'cameras':
+                this.onCameras?.(msg);
+                break;
+            case 'camera_frame':
+                this.onCameraFrame?.(msg);
                 break;
             case 'error':
                 console.warn(`[robot-bridge] error from robot: ${msg.code}: ${msg.message}`);
@@ -163,6 +179,21 @@ export class RobotBridgeClient {
     emergencyStop() { return this.request('estop'); }
     getStatus() { this._send({ type: 'get_status' }); }
 
+    // ---------- 相机（TienKung Dex 扩展） ----------
+
+    /** 请求相机清单，结果通过 onCameras 回调。 */
+    listCameras() { this._send({ type: 'camera_list' }); }
+
+    /** 订阅某路相机推流；帧通过 onCameraFrame 回调。 */
+    subscribeCamera(camera, fps = 10) {
+        return this.request('camera_subscribe', { camera, fps });
+    }
+
+    /** 取消订阅某路相机。 */
+    unsubscribeCamera(camera) {
+        return this.request('camera_unsubscribe', { camera });
+    }
+
     close() {
         if (this.ws) {
             try { this.ws.close(1000, 'client closed'); } catch { /* ignore */ }
@@ -176,6 +207,9 @@ export class RobotBridgeClient {
             pending.resolve({ accepted: false, reason: 'closed' });
         }
         this._pendingAck.clear();
+        for (const waiter of [...this._cameraWaiters]) {
+            this._cameraWaiters.delete(waiter);
+        }
     }
 }
 

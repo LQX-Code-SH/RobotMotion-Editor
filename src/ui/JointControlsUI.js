@@ -1,4 +1,4 @@
-import { classifyJointPart, isScalarJoint, JOINT_PARTS } from '../models/UnifiedRobotModel.js';
+import { classifyJointPart, isScalarJoint, isPassiveHandJoint, JOINT_PARTS } from '../models/UnifiedRobotModel.js';
 /**
  * JointControlsUI - Joint control UI module
  * Responsible for creating and managing joint control sliders and input fields
@@ -242,11 +242,15 @@ export class JointControlsUI {
         const orderedJoints = Array.from(model.joints.values());
         if (model.constraints?.size) orderedJoints.sort((a, b) => Number(!!b.actuated) - Number(!!a.actuated));
 
-        // 按 头 / 左右臂 / 左右手 / 腰 / 左右腿 / 其他 分组，组内保持原有顺序
+        // 按 头 / 左右臂 / 左右手 / 腰 / 左右腿 / 其他 分组，组内保持原有顺序。
+        // 手部只展示主动关节：Inspire RH56 的 *_dip_joint、BrainCo 的 *_distal_joint
+        // 由主动关节耦合驱动，真机无独立电机（Inspire 13 个主动自由度而非 URDF 的 18 个）。
         const grouped = new Map();
         orderedJoints.forEach((joint) => {
             if (!isScalarJoint(joint)) return;
             const group = classifyJointPart(joint.name);
+            const isHandGroup = group === 'hand' || group.endsWith('Hand');
+            if (isHandGroup && isPassiveHandJoint(joint.name)) return;
             if (!grouped.has(group)) grouped.set(group, []);
             grouped.get(group).push(joint);
         });

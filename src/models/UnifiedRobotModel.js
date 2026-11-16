@@ -166,6 +166,18 @@ export const JOINT_PARTS = [
  * @param {string} jointName
  * @returns {'head'|'waist'|'leftArm'|'rightArm'|'arm'|'leftHand'|'rightHand'|'hand'|'leftLeg'|'rightLeg'|'leg'|'other'}
  */
+// 手部被动耦合关节：Inspire RH56 的 *_dip_joint、BrainCo Revo 的 *_distal_joint。
+// 它们由主动关节经连杆/mimic 带动，真机没有独立电机，关节面板不展示。
+const PASSIVE_HAND_JOINT_PATTERN = /_(?:dip|distal)_joint$/i;
+
+/**
+ * 是否为手部被动（无独立驱动）关节。
+ * @param {string} jointName
+ */
+export function isPassiveHandJoint(jointName) {
+    return PASSIVE_HAND_JOINT_PATTERN.test(String(jointName || ''));
+}
+
 export function classifyJointPart(jointName) {
     const name = String(jointName || '');
     const region = JOINT_REGION_PATTERNS.find(([, pattern]) => pattern.test(name))?.[0];
