@@ -18,22 +18,42 @@
 - **键盘控制**：真机控制面板可开启键盘 jog——W/S 前后、A/D 左右、Q/E 升降（机器人基座坐标系），1-6 分别控制横滚/俯仰/偏航的正反方向（绕末端工具轴）；按住连续移动，松开后记录一次关键帧，配合「真机同步控制」可实时驱动机器人
 - **末端控制**：控制栏开启后在手臂末端显示平移/旋转 gizmo，拖动即通过数值 IK（阻尼最小二乘 + 一阶 active-set 限位）反解整条关节链，关节面板实时同步，Auto Key 自动记录姿态；下拉菜单可切换平移/旋转、锁定腰部关节、选择左右末端（也可直接点击 3D 中的手臂切换）
 - **动作预览**：编辑器内实时回放；连接真机后可用「视口同步」以半透明幽灵层实时显示真机实际姿态（主模型保持为可编辑目标），「读取真机姿态」一次性把真机当前角度拉进视口；反向的「真机同步控制」把视口里的关节拖动 / 末端 IK / 键盘 jog 以约 12.5Hz 节流下发到真机，两者可同时开启
-- **真机播放**：在动画编辑器工具栏点“真机播放”，把当前 clip 按 fps 采样为关节轨迹下发执行；真机控制面板提供“发送当前位姿”“真机回零”、停止与一键急停
+- **真机播放**：在动画编辑器工具栏点“真机播放”，把当前 clip 采样为关节轨迹下发执行——**只播一遍、不循环**，首帧从真机当前位姿平滑过渡（面板限速），手型匹配时手指沿同一时间轴走独立通道；与「真机同步控制」互斥，播放期间自动禁用。真机控制面板提供“发送当前位姿”“真机回零”、停止与一键急停
 - **设备管理**：按"设备地址"一键连接（直连机器人或经操作站网关），状态、遥测与动作下发集中在一个面板
-- **一键部署**：网页端填机器人 IP / 用户名 / 密码 / 固件类型，经操作站 SSH/SFTP 上传桥接并拉起；桥接固定开放 8081 控制 / 8082 状态 / 8083 相机通道
+- **一键部署**：网页端填机器人 IP / 用户名 / 密码 / 固件类型，经操作站 SSH/SFTP 上传桥接并拉起；端口默认取「当前连接的桥接实际端口」，信标按 UDP 探测，日志实时回传
+- **一键安装包**：`scripts/build-deb.sh` 产出自包含 `.deb`（桥接 + nginx 站点 + 完整前端产物），机器人本体一条 `apt install` 装完即可用，带 systemd 服务；安装包由 Git LFS 托管在 `Release/`
 - **模型支持**：URDF / Xacro / MJCF（含并联机构闭链联动）/ USD（部分支持）；内置优必选 Walker S2 / C1 / TienKung Pro / TienKung Dex 四款机型资源
 - **机型切换**：页面左上角机型列表按“机器人型号-末端执行器”标识（如 `walker-tienkung-dex-inspire`），切换即预览对应 URDF
 - **其他能力**：惯量/质心/坐标系可视化、距离测量、内置 CodeMirror 编辑器、MuJoCo 物理仿真
 
 ```bash
+# 1) 开发前端（dev 与 preview 统一 3000）
 pnpm install
-pnpm run dev                     # 前端 http://localhost:3000
+pnpm run dev                        # http://localhost:3000
+
+# 2) 生产产物 + 打包机器人本体安装包
+pnpm run build                      # 输出 dist/
+scripts/build-deb.sh                # → Release/robot-editor_<version>_<arch>.deb
+sudo apt install ./Release/robot-editor_1.5.0_arm64.deb   # 机器人上执行
+
+# 3) 操作站网关（部署 API + 设备发现，跑在浏览器那台电脑）
 cd bridge && npm install
-npm run station                  # 操作站网关（操作员电脑）
-node robot-server.js --adapter mock   # 机器人端桥接（无真机时用模拟器）
+npm run station -- --host 0.0.0.0   # 仅本机访问可去掉 --host
+
+# 4) 桥接（源码直跑，调试用；正式环境用上面的 .deb）
+cd bridge/dex && python3 -u dex_bridge.py --hand inspire --spd 1.5 --cur 40 --max-speed 3.0
 ```
 
-协议与部署见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)，部署形态与演进路线（本地安装为主，边缘网关 + TLS 为备选）见 [`docs/deployment.md`](docs/deployment.md)。
+端口约定：
+
+| 端口 | 用途 |
+|---|---|
+| 3000 | 前端（dev / preview / nginx 统一） |
+| 8090 | 操作站 station（部署 API、WS 代理、设备发现） |
+| 8081 / 8082 / 8083 | 桥接控制 / 状态 / 相机 |
+| 45678/UDP | 桥接信标（设备发现） |
+
+安装包与桥接用法见 [`packaging/USAGE.md`](packaging/USAGE.md)，协议与部署见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)，部署形态与演进路线（本地安装为主，边缘网关 + TLS 为备选）见 [`docs/deployment.md`](docs/deployment.md)。
 
 ## 规划与进度
 
@@ -44,7 +64,8 @@ node robot-server.js --adapter mock   # 机器人端桥接（无真机时用模�
 | 真机桥接服务与设备发现/管理 | ✅ 已完成 |
 | 真机控制面板（连接、使能、轨迹播放、急停、视口同步、读取姿态、键盘 jog） | ✅ 已完成 |
 | 末端笛卡尔空间拖动（IK，含并联主链简化） | ✅ 已完成 |
-| 固件一键部署（SSH/SFTP，控制/状态/相机分端口） | ✅ 已完成 |
+| 固件一键部署（SSH/SFTP，端口取当前值 + UDP 信标探测 + 实时日志） | ✅ 已完成 |
+| 自包含 `.deb` 安装包（桥接 + nginx + 前端产物，systemd 托管） | ✅ 已完成 |
 | Walker S2 / C1 / TienKung Pro 机型资源与关节档案 | ✅ 已完成 |
 | **TienKung Dex 真机适配**（桥接服务已完成，待真机联调） | 🔄 **进行中** |
 | 优必选 SDK 实机对接 | 🔄 进行中 |
