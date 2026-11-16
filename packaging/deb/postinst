@@ -1,0 +1,65 @@
+#!/bin/sh
+# robot-editor 安装后：启用 nginx 站点并启动、刷新 systemd、检查端口与 Python 依赖。
+set -e
+
+SITE=/etc/nginx/sites-available/robot-editor.conf
+WEB_ROOT=/var/www/robot-editor
+CONF=/etc/robot-editor/bridge.conf
+UNIT=/usr/lib/systemd/system/robot-editor.service
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+
+# ---- 前端站点 ----
+if [ -f "$SITE" ]; then
+    ln -sf "$SITE" /etc/nginx/sites-enabled/robot-editor.conf
+    # 默认站点监听 80，与本项目无关
+    rm -f /etc/nginx/sites-enabled/default
+fi
+if [ -d "$WEB_ROOT" ]; then
+    chown -R www-data:www-data "$WEB_ROOT" 2>/dev/null || true
+fi
+if nginx -t >/dev/null 2>&1; then
+    if systemctl is-active nginx >/dev/null 2>&1; then
+        systemctl reload nginx >/dev/null 2>&1 || true
+    else
+        systemctl enable --now nginx >/dev/null 2>&1 || true
+    fi
+else
+    echo "robot-editor: 警告：nginx 配置校验失败，请执行 sudo nginx -t 查看原因" >&2
+fi
+
+# ---- 桥接侧检查（只提示，不阻断安装）----
+for port in 8081 8082 8083; do
+    if ss -ltn 2>/dev/null | grep -q ":$port "; then
+        echo "robot-editor: 警告：TCP 端口 $port 已被占用，启动桥接前请先停止占用进程" >&2
+    fi
+done
+ss -lun 2>/dev/null | grep -q ":45678 " && \
+    echo "robot-editor: 警告：UDP 端口 45678（信标）已被占用" >&2
+
+run_user=$(sed -n 's/^User=//p' "$UNIT" 2>/dev/null | head -1)
+if [ -n "$run_user" ] && command -v su >/dev/null 2>&1; then
+    if ! su -s /bin/sh "$run_user" -c 'python3 -c "import websockets"' >/dev/null 2>&1; then
+        echo "robot-editor: 警告：用户 $run_user 下缺少 Python 模块 websockets" >&2
+        echo "             请执行：sudo apt install python3-websockets" >&2
+    fi
+fi
+
+chmod 755 /usr/bin/robot-editor 2>/dev/null || true
+
+cat <<EOF
+
+robot-editor 已安装。
+
+  网页      : http://<本机IP>:3000
+  桥接配置  : $CONF
+  桥接启停  : sudo robot-editor start|stop|restart|status|logs
+  开机自启  : sudo systemctl enable --now robot-editor
+  桥接自检  : robot-editor check
+
+前端产物已随包安装（$WEB_ROOT），不依赖源码目录。
+桥接默认不自动启用，确认端口与手型配置无误后再开启。
+
+EOF
+
+exit 0

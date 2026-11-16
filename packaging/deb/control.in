@@ -1,0 +1,24 @@
+Package: robot-editor
+Version: @VERSION@
+Section: misc
+Priority: optional
+Architecture: @ARCH@
+Maintainer: RobotMotion-Editor <noreply@local>
+Installed-Size: @INSTALLED_SIZE@
+Depends: nginx (>= 1.18), python3 (>= 3.10), python3-websockets, bash, coreutils
+Recommends: iproute2
+Provides: robot-bridge, robot-web
+Replaces: robot-bridge, robot-web
+Conflicts: robot-bridge, robot-web
+Description: Robot Motion Editor (bridge service + web frontend, self-contained)
+ Installs everything needed on the robot host in one package:
+  - TienKung Dex bridge service (ROS 2 / Python) under /opt/robot-editor
+  - systemd unit robot-editor.service (not enabled by default)
+  - nginx site serving the web editor on port 3000, including the full
+    production build and robot model assets (no source checkout required)
+ .
+ Install:
+   sudo apt install ./robot-editor_<version>_<arch>.deb
+ Then:
+   http://<robot-ip>:3000                     web editor
+   sudo systemctl enable --now robot-editor    bridge autostart

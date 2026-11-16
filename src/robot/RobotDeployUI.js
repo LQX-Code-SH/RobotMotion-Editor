@@ -12,10 +12,15 @@ const STORAGE = {
     host: 'robot-deploy-host',
     username: 'robot-deploy-username',
     sshPort: 'robot-deploy-ssh-port',
-    firmware: 'robot-deploy-firmware',
-    model: 'robot-deploy-model',
+    // 固件类型与机型共用一个 key（"固件ID|机型"）：两者本来一一对应，
+    // 分开存会在切换固件后出现机型残留，导致部署到错误的机型档案。
+    selection: 'robot-deploy-selection',
+    legacyFirmware: 'robot-deploy-firmware',
+    legacyModel: 'robot-deploy-model',
     ports: 'robot-deploy-ports',
 };
+
+const PORT_KEYS = ['control', 'status', 'camera', 'beacon'];
 
 export class RobotDeployUI {
     constructor({ connectionUI = null } = {}) {
@@ -29,6 +34,7 @@ export class RobotDeployUI {
         this._bind();
         this._restore();
         this._syncDeployHost();
+        this.syncFromDevice();
         this._loadFirmwares();
     }
 
@@ -57,7 +63,7 @@ export class RobotDeployUI {
         this._el('robot-deploy-host')?.addEventListener('input', (event) => {
             delete event.target.dataset.auto;
         });
-        for (const key of ['control', 'status', 'camera', 'beacon']) {
+        for (const key of PORT_KEYS) {
             const input = this._el(`robot-deploy-port-${key}`);
             input?.addEventListener('change', () => {
                 input.dataset.dirty = '1';
@@ -67,7 +73,9 @@ export class RobotDeployUI {
 
         // 展开面板时刷新固件清单（station 可能后启动）
         this._el('robot-deploy')?.addEventListener('toggle', (event) => {
-            if (event.target.open && !this.firmwares.length) this._loadFirmwares();
+            if (!event.target.open) return;
+            this.syncFromDevice();
+            if (!this.firmwares.length) this._loadFirmwares();
         });
 
         // 设备地址是机器人 IP 时，自动带入部署表单
@@ -82,6 +90,44 @@ export class RobotDeployUI {
         hostInput.value = address.split(':')[0];
         hostInput.dataset.auto = '1';
         this._persist();
+    }
+
+    /**
+     * 用「当前正在使用」的桥接端口作为部署端口默认值。
+     *
+     * 优先级：当前连接的桥接实际端口 > 上次用过的端口（_restore）> 固件默认值。
+     * 端口一致是重装的前提——装完后网页仍按同一组端口重连。
+     *
+     * @param {object|null} device connectionUI.device（welcome payload）
+     * @returns {boolean} 是否写入了端口
+     */
+    syncFromDevice(device = this.connectionUI?.device) {
+        if (!device) return false;
+        const live = {
+            control: Number(device.wsPort ?? device.ports?.control),
+            status: Number(device.statusPort ?? device.ports?.status),
+            camera: Number(device.cameraPort ?? device.ports?.camera),
+            beacon: Number(device.beaconPort ?? device.ports?.beacon),
+        };
+        if (!Number.isInteger(live.control) || live.control <= 0) return false;
+
+        const applied = {};
+        for (const key of PORT_KEYS) {
+            const input = this._el(`robot-deploy-port-${key}`);
+            if (!input) continue;
+            const value = Number.isInteger(live[key]) && live[key] >= 0 ? live[key] : 0;
+            // 当前实际端口就是默认值：记为 dirty，避免被固件默认值覆盖
+            input.dataset.dirty = '1';
+            if (String(input.value) === String(value)) continue;
+            input.value = value;
+            applied[key] = value;
+        }
+        if (Object.keys(applied).length) {
+            this.appendLog('system', `已按当前真机桥接端口填入默认值：${Object.entries(applied)
+                .map(([key, value]) => `${key}=${value}`).join(' ')}`);
+            this._persist();
+        }
+        return true;
     }
 
     // ---------- 配置 ----------
@@ -118,8 +164,8 @@ export class RobotDeployUI {
             localStorage.setItem(STORAGE.host, form.host);
             localStorage.setItem(STORAGE.username, form.username);
             localStorage.setItem(STORAGE.sshPort, String(form.port));
-            localStorage.setItem(STORAGE.firmware, form.firmwareId);
-            localStorage.setItem(STORAGE.model, form.model);
+            localStorage.setItem(STORAGE.selection,
+                form.model ? `${form.firmwareId}|${form.model}` : form.firmwareId);
             localStorage.setItem(STORAGE.ports, JSON.stringify(form.ports));
         } catch { /* ignore quota */ }
     }
@@ -129,18 +175,28 @@ export class RobotDeployUI {
             const host = localStorage.getItem(STORAGE.host);
             const username = localStorage.getItem(STORAGE.username);
             const sshPort = localStorage.getItem(STORAGE.sshPort);
-            const firmware = localStorage.getItem(STORAGE.firmware);
-            const model = localStorage.getItem(STORAGE.model);
             const ports = JSON.parse(localStorage.getItem(STORAGE.ports) || 'null');
 
             if (host) this._el('robot-deploy-host').value = host;
             if (username) this._el('robot-deploy-username').value = username;
             if (sshPort) this._el('robot-deploy-ssh-port').value = sshPort;
-            if (firmware) this._firmwarePreferred = firmware;
-            if (model) this._modelPreferred = model;
+
+            const selection = localStorage.getItem(STORAGE.selection)
+                || [localStorage.getItem(STORAGE.legacyFirmware),
+                    localStorage.getItem(STORAGE.legacyModel)].filter(Boolean).join('|');
+            if (selection) {
+                const [firmware, model] = selection.split('|');
+                if (firmware) this._firmwarePreferred = firmware;
+                if (model) this._modelPreferred = model;
+            }
+
             if (ports) {
-                for (const key of ['control', 'status', 'camera', 'beacon']) {
-                    if (Number.isInteger(ports[key])) this._el(`robot-deploy-port-${key}`).value = ports[key];
+                for (const key of PORT_KEYS) {
+                    const input = this._el(`robot-deploy-port-${key}`);
+                    if (!input || !Number.isInteger(ports[key])) continue;
+                    input.value = ports[key];
+                    // 上次用过的端口就是默认值：不能被固件默认值覆盖
+                    input.dataset.dirty = '1';
                 }
             }
         } catch { /* ignore */ }
@@ -187,13 +243,16 @@ export class RobotDeployUI {
             if (wrapper) wrapper.style.display = models.length > 1 ? '' : 'none';
         }
 
-        // 端口：未手动改过则用固件默认值
+        // 端口：未手动改过则用固件默认值；不提供相机的固件把相机端口固定为 0（禁用）
         const defaults = firmware.ports || {};
-        for (const key of ['control', 'status', 'camera', 'beacon']) {
+        for (const key of PORT_KEYS) {
             const input = this._el(`robot-deploy-port-${key}`);
-            if (input && !input.dataset.dirty && Number.isInteger(defaults[key])) {
-                input.value = defaults[key];
+            if (!input || input.dataset.dirty) continue;
+            if (key === 'camera' && firmware.supportsCamera === false) {
+                input.value = 0;
+                continue;
             }
+            if (Number.isInteger(defaults[key])) input.value = defaults[key];
         }
         if (!firmware.supportsCamera) {
             this.appendLog('system', `固件 ${firmware.label} 不提供相机推流，相机端口不会监听。`);

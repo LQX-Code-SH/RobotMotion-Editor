@@ -71,6 +71,8 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    // 端口被占用时直接报错，不再悄悄顺延到 3001/3002（避免现场连错端口）
+    strictPort: true,
     open: true,
     hmr: {
       overlay: false
@@ -86,6 +88,16 @@ export default defineConfig({
       'localhost',
       '127.0.0.1'
     ]
+  },
+  // preview 也用 3000：前端只对外暴露一个端口（dev 与 preview 不能同时开）
+  preview: {
+    port: 3000,
+    strictPort: true,
+    // 与 dev 相同的 COOP/COEP 头，否则 USD(WASM) 在 preview 下无法启用 SharedArrayBuffer
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    }
   },
   build: {
     outDir: 'dist',

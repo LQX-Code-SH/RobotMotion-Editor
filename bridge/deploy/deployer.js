@@ -282,7 +282,9 @@ function buildRunScript(firmware, model, ports) {
             lines.push(`if [ -f ${setup} ]; then source ${setup}; fi`);
         }
         lines.push('echo $$ > bridge.pid');
-        lines.push(`exec python3 ${firmware.entry} ${buildArgs(firmware, model, ports)}`);
+        // -u：不缓冲 stdout，否则 bridge.log 要攒满一个缓冲区才落盘，
+        // 「日志」按钮和部署校验的 logTail 会是空的。
+        lines.push(`exec python3 -u ${firmware.entry} ${buildArgs(firmware, model, ports)}`);
     } else {
         lines.push('cd bridge');
         lines.push('echo $$ > ../bridge.pid');
@@ -291,24 +293,79 @@ function buildRunScript(firmware, model, ports) {
     return `${lines.join('\n')}\n`;
 }
 
+/**
+ * 把 run.sh 写到远端。
+ * 部署与「启动」共用同一份逻辑：启动前按当前端口重写脚本，
+ * 避免「改了端口点启动」仍在用上一次部署留下的旧脚本。
+ */
+async function writeRunScript(conn, baseDir, firmware, model, ports) {
+    const sftp = await getSftp(conn);
+    const scriptPath = `${baseDir}/run.sh`;
+    const script = buildRunScript(firmware, model, ports);
+    await new Promise((resolvePromise, rejectPromise) => {
+        const stream = sftp.createWriteStream(scriptPath, { mode: 0o755 });
+        stream.on('close', resolvePromise);
+        stream.on('error', rejectPromise);
+        stream.end(script);
+    });
+    await execChecked(conn, `chmod +x ${shellQuote(scriptPath)}`);
+}
+
 // ============================================================
 // 远端操作片段
 // ============================================================
 
 function portProbeCommand(ports) {
-    const list = PORT_KEYS.map((key) => ports[key]).filter(Boolean);
+    // 控制/状态/相机是 TCP，发现信标是 UDP——都用 TCP connect 探会让信标端口永远"未就绪"。
+    // 优先用 `ss` 读监听表（不建立连接，避免在桥接日志里刷 websockets 握手异常），
+    // 没有 ss 时退回 socket 探测：TCP 判断能否连上，UDP 判断能否 bind。
+    const tcp = PORT_KEYS.filter((key) => key !== 'beacon').map((key) => ports[key]).filter(Boolean);
+    const udp = [ports.beacon].filter(Boolean);
     return `python3 - <<'PY'\n` +
-        `import socket\n` +
-        `for p in ${JSON.stringify(list)}:\n` +
-        `    s = socket.socket()\n` +
-        `    s.settimeout(1)\n` +
+        `import socket, subprocess\n` +
+        `tcp = ${JSON.stringify(tcp)}\n` +
+        `udp = ${JSON.stringify(udp)}\n` +
+        `def listening(flag):\n` +
         `    try:\n` +
-        `        s.connect(('127.0.0.1', p))\n` +
-        `        print(f'{p} ok')\n` +
-        `    except Exception as exc:\n` +
-        `        print(f'{p} fail {exc}')\n` +
-        `    finally:\n` +
-        `        s.close()\n` +
+        `        out = subprocess.run(['ss', flag], capture_output=True, text=True, timeout=3).stdout\n` +
+        `    except Exception:\n` +
+        `        return None\n` +
+        `    found = set()\n` +
+        `    for line in out.splitlines()[1:]:\n` +
+        `        parts = line.split()\n` +
+        `        if len(parts) < 4:\n` +
+        `            continue\n` +
+        `        port = parts[3].rsplit(':', 1)[-1]\n` +
+        `        if port.isdigit():\n` +
+        `            found.add(int(port))\n` +
+        `    return found\n` +
+        `tcp_listen = listening('-ltn')\n` +
+        `udp_listen = listening('-lun')\n` +
+        `for p in tcp:\n` +
+        `    ok = (p in tcp_listen) if tcp_listen is not None else None\n` +
+        `    if ok is None:\n` +
+        `        s = socket.socket()\n` +
+        `        s.settimeout(1)\n` +
+        `        try:\n` +
+        `            s.connect(('127.0.0.1', p))\n` +
+        `            ok = True\n` +
+        `        except Exception:\n` +
+        `            ok = False\n` +
+        `        finally:\n` +
+        `            s.close()\n` +
+        `    print(f'{p} ' + ('ok tcp 已监听' if ok else 'fail 未监听'))\n` +
+        `for p in udp:\n` +
+        `    ok = (p in udp_listen) if udp_listen is not None else None\n` +
+        `    if ok is None:\n` +
+        `        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\n` +
+        `        try:\n` +
+        `            u.bind(('', p))\n` +
+        `            ok = False\n` +
+        `        except OSError:\n` +
+        `            ok = True\n` +
+        `        finally:\n` +
+        `            u.close()\n` +
+        `    print(f'{p} ' + ('ok udp 已监听' if ok else 'fail 未监听'))\n` +
         `PY`;
 }
 
@@ -333,9 +390,11 @@ async function isProcessAlive(conn, baseDir) {
 }
 
 function startCommand(baseDir) {
+    // 必须用子 shell 组 `( ... & )` 后台化：写成 `A && B &` 时 `&` 的优先级更低，
+    // 整条链会被放到后台而前台 shell 仍在等待它，SSH 通道不关闭，
+    // 部署会在「启动桥接」步骤 30s 超时（其实进程已经起来了）。
     return `cd ${shellQuote(baseDir)} && chmod +x run.sh && ` +
-        `nohup setsid ./run.sh > bridge.log 2>&1 < /dev/null & ` +
-        `echo started`;
+        `(setsid nohup ./run.sh > bridge.log 2>&1 < /dev/null &) ; echo started`;
 }
 
 async function installPythonDeps(conn, firmware, onLog) {
@@ -370,6 +429,10 @@ async function installNodeDeps(conn, baseDir, onLog) {
     const install = await exec(conn, `cd ${shellQuote(dir)} && npm install --omit=dev --no-audit --no-fund`,
         { onLog, timeoutMs: 300000 });
     if (install.code !== 0) {
+        const output = `${install.stdout || ''}${install.stderr || ''}`;
+        if (/command not found|not recognized/i.test(output)) {
+            throw new Error('机器人缺少 npm：请先安装 Node.js（含 npm）后重试，或改用 Python 固件');
+        }
         throw new Error('npm install 失败：机器人可能无外网，请先手动安装依赖或改用 Python 固件');
     }
     return '已安装 Node 依赖（ws）';
@@ -415,16 +478,21 @@ export async function preflight(options) {
         const disk = await exec(conn, `df -h ${shellQuote(home)} | tail -1`);
         add('disk', '磁盘空间', 'ok', disk.stdout.trim().replace(/\s+/g, ' '));
 
+        const baseDir = `${home}/${REMOTE_ROOT}/${firmware.id}`;
+        const state = await isProcessAlive(conn, baseDir);
+
         const probe = await exec(conn, portProbeCommand(ports));
         const probeResult = parsePortProbe(probe.stdout);
         const busy = Object.entries(probeResult)
             .filter(([, value]) => value.ok)
             .map(([port]) => port);
         add('ports', '端口占用', busy.length ? 'warn' : 'ok',
-            busy.length ? `已占用：${busy.join(', ')}（部署会先停止旧实例）` : '全部可用');
+            busy.length
+                ? (state === 'alive'
+                    ? `已占用：${busy.join(', ')}（部署会先停止旧实例）`
+                    : `已占用：${busy.join(', ')}（不是本面板启动的进程，请换端口或先手动停止，否则启动会失败）`)
+                : '全部可用');
 
-        const baseDir = `${home}/${REMOTE_ROOT}/${firmware.id}`;
-        const state = await isProcessAlive(conn, baseDir);
         add('instance', '已有实例', state === 'alive' ? 'warn' : 'ok',
             state === 'alive' ? '检测到运行中的桥接，部署将重启' : '无运行实例');
 
@@ -478,6 +546,18 @@ export async function deploy(options, emit = () => {}) {
     step('connect', 'SSH 连接', 'ok');
 
     try {
+        // 先确认远端运行时：缺 node/python3 时立刻给出明确提示，不必等上传完再失败
+        step('runtime', '检查运行时', 'running', firmware.runtime === 'python' ? 'python3' : 'node');
+        const runtime = await exec(conn, firmware.runtime === 'python' ? 'python3 -V' : 'node -v');
+        if (runtime.code !== 0) {
+            const hint = firmware.runtime === 'python'
+                ? '机器人上找不到 python3：请先安装 Python 3 后重试'
+                : '机器人上找不到 node：请先安装 Node.js 18+（含 npm），或改用 Python 固件（天工 DEX）';
+            step('runtime', '检查运行时', 'fail', hint);
+            throw new Error(hint);
+        }
+        step('runtime', '检查运行时', 'ok', (runtime.stdout || runtime.stderr).trim());
+
         const home = (await execChecked(conn, 'printf %s "$HOME"')).stdout.trim();
         const baseDir = `${home}/${REMOTE_ROOT}/${firmware.id}`;
 
@@ -504,15 +584,7 @@ export async function deploy(options, emit = () => {}) {
         step('upload', '上传固件文件', 'ok', `${files.length} 个文件`);
 
         step('script', '生成启动脚本', 'running');
-        const script = buildRunScript(firmware, model, ports);
-        const scriptPath = `${baseDir}/run.sh`;
-        await new Promise((resolvePromise, rejectPromise) => {
-            const stream = sftp.createWriteStream(scriptPath, { mode: 0o755 });
-            stream.on('close', resolvePromise);
-            stream.on('error', rejectPromise);
-            stream.end(script);
-        });
-        await execChecked(conn, `chmod +x ${shellQuote(scriptPath)}`);
+        await writeRunScript(conn, baseDir, firmware, model, ports);
         step('script', '生成启动脚本', 'ok', `control:${ports.control} status:${ports.status} camera:${ports.camera}`);
 
         step('deps', '安装运行依赖', 'running');
@@ -592,6 +664,7 @@ export async function action(options) {
     const firmware = getFirmware(options.firmwareId);
     const connInfo = normalizeConnection(options);
     const ports = normalizePorts(firmware, options.ports);
+    const model = normalizeModel(firmware, options.model);
     const actionName = String(options.action || '').trim();
 
     const conn = await connect(connInfo);
@@ -612,8 +685,16 @@ export async function action(options) {
             if (actionName === 'restart') await stopInstance(conn, baseDir, () => {});
             else {
                 const state = await isProcessAlive(conn, baseDir);
-                if (state === 'alive') return { ok: true, action: actionName, message: '已在运行' };
+                if (state === 'alive') {
+                    return {
+                        ok: true,
+                        action: actionName,
+                        message: '已在运行（如需改用新端口，请先「停止」再「启动」，或直接「一键安装」）'
+                    };
+                }
             }
+            // 按本次请求的端口重写启动脚本，避免沿用上一次部署的旧端口
+            await writeRunScript(conn, baseDir, firmware, model, ports);
             await execChecked(conn, startCommand(baseDir));
             await new Promise((r) => setTimeout(r, 2500));
             const alive = await isProcessAlive(conn, baseDir);

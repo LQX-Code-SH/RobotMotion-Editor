@@ -1,0 +1,24 @@
+[Unit]
+Description=TienKung Dex bridge (robot-editor)
+Documentation=file:/usr/share/doc/robot-editor/USAGE.md
+# ROS 2 的 DDS 依赖网络就绪；不要求图形会话
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 必须是能访问 ROS 2 话题的那个普通用户（安装时按构建用户写入），不要用 root
+User=@RUN_USER@
+Environment=HOME=/home/@RUN_USER@
+ExecStart=/usr/bin/robot-editor _exec
+# 桥接异常退出时自动拉起；正常停止（SIGTERM 看门狗）不重启
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=10
+# 日志进 journald：robot-editor logs -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

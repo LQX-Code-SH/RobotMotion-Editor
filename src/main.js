@@ -247,6 +247,9 @@ class App {
             this.robotDeployUI.init();
             window.robotDeployUI = this.robotDeployUI;
 
+            // 部署面板的端口默认值跟随当前连接的桥接实际端口
+            this.robotConnectionUI.onDeviceChange = (device) => this.robotDeployUI.syncFromDevice(device);
+
             // Built-in robot model catalog (top-left selector)
             this.robotCatalogUI = new RobotCatalogUI({ fileHandler: this.fileHandler });
             this.robotCatalogUI.init();

@@ -65,6 +65,7 @@ export class RobotConnectionUI {
         this.endEffectorIKControls = endEffectorIKControls;
         this.robotGhost = robotGhost;
         this.ghostVisible = true;
+        this.onDeviceChange = null;   // (device|null) 连接建立/断开时通知外部（如部署面板同步端口）
 
         this.client = new RobotBridgeClient();
         this.device = null;              // 当前连接的设备档案
@@ -630,6 +631,7 @@ export class RobotConnectionUI {
 
     _onConnected(welcome, url) {
         this._setState('connected');
+        this.onDeviceChange?.(welcome);
         this.appendLog('system', `连接成功：${welcome.displayName || welcome.name}-${welcome.id}`
             + `（${welcome.model}，${welcome.joints?.length || 0} 关节，适配器：${welcome.adapter}）`);
         this.validateJointMatch();
@@ -724,6 +726,7 @@ export class RobotConnectionUI {
         this._updateHomeInfo();
         this.client.close();
         this._setState('idle');
+        this.onDeviceChange?.(null);
         if (wasConnected) this.appendLog('system', '已断开连接。');
     }
 
@@ -1475,6 +1478,7 @@ export class RobotConnectionUI {
             this.cameraUI?.setConnected(false);
             this._updateHomeInfo();
             this._setState('idle');
+            this.onDeviceChange?.(null);
             this.appendLog('system', '与机器人的连接已断开。');
         };
 

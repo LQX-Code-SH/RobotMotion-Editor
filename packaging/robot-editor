@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+#
+# robot-editor — TienKung Dex 桥接服务管理命令（随 .deb 安装到 /usr/bin/robot-editor）
+#
+#   sudo robot-editor start | stop | restart   通过 systemd 管理服务
+#        robot-editor status                   服务状态 + 端口监听 + 配置摘要
+#        robot-editor logs [-f]                查看日志（journald）
+#        robot-editor config [编辑器]           查看 / 编辑配置文件
+#        robot-editor check                    安装自检（配置文件、Python 依赖、ROS 环境、端口）
+#        robot-editor run                      前台运行（调试用，Ctrl+C 停止）
+#
+# 由 systemd 调用的内部入口是 `robot-editor _exec`。
+#
+set -uo pipefail
+
+SERVICE=robot-editor
+APP_DIR=${ROBOT_EDITOR_APP:-/opt/robot-editor}
+ENTRY="$APP_DIR/dex/dex_bridge.py"
+CONF=${ROBOT_EDITOR_CONF:-/etc/robot-editor/bridge.conf}
+
+die() { echo "robot-editor: $*" >&2; exit 1; }
+
+load_conf() {
+    [ -f "$CONF" ] || die "缺少配置文件 $CONF（重装 robot-editor 可恢复默认配置）"
+    # shellcheck disable=SC1090
+    . "$CONF"
+}
+
+need_root() {
+    [ "$(id -u)" -eq 0 ] || die "该操作需要 root：sudo robot-editor $1"
+}
+
+port_listening() {   # $1=tcp|udp $2=port
+    local flag="-ltn"
+    [ "$1" = udp ] && flag="-lun"
+    ss "$flag" 2>/dev/null | grep -q ":$2\b"
+}
+
+cmd_exec() {
+    load_conf
+    [ -f "$ENTRY" ] || die "找不到 $ENTRY（安装不完整，请重新安装）"
+
+    # 依次 source ROS 2 环境；缺哪个只提示、不阻断（dry-run 也许用不到）
+    local item
+    IFS=':' read -r -a _setups <<< "${ROS_SETUP:-}"
+    # ROS 2 的 setup.bash 会引用未定义变量（如 AMENT_TRACE_SETUP_FILES），
+    # 在 nounset(set -u) 下会直接把脚本打断，source 期间临时关掉。
+    set +u
+    for item in "${_setups[@]}"; do
+        [ -n "$item" ] || continue
+        if [ -f "$item" ]; then
+            # shellcheck disable=SC1090
+            . "$item"
+        else
+            echo "robot-editor: 提示：ROS setup 不存在，已跳过 $item" >&2
+        fi
+    done
+    set -u
+
+    local -a args=(
+        /usr/bin/python3 -u "$ENTRY"
+        --model "${BRIDGE_MODEL:-walker-tienkung-dex}"
+        --host 0.0.0.0
+        --ws-port "${WS_PORT:-8081}"
+        --status-port "${STATUS_PORT:-8082}"
+        --camera-port "${CAMERA_PORT:-8083}"
+        --beacon-port "${BEACON_PORT:-45678}"
+        --hand "${BRIDGE_HAND:-auto}"
+        --spd "${BRIDGE_SPD:-0.3}"
+        --cur "${BRIDGE_CUR:-10}"
+        --max-speed "${BRIDGE_MAX_SPEED:-1.2}"
+    )
+    [ -n "${BRIDGE_NAME:-}" ] && args+=(--name "$BRIDGE_NAME")
+    # BRIDGE_EXTRA 允许填多个开关（如 "--trace"），按空格拆分
+    if [ -n "${BRIDGE_EXTRA:-}" ]; then
+        read -r -a _extra <<< "$BRIDGE_EXTRA"
+        args+=("${_extra[@]}")
+    fi
+
+    echo "robot-editor: 启动 ${BRIDGE_MODEL:-walker-tienkung-dex}（控制 ${WS_PORT} / 状态 ${STATUS_PORT} / 相机 ${CAMERA_PORT} / 信标 ${BEACON_PORT}）"
+    exec "${args[@]}"
+}
+
+cmd_status() {
+    load_conf
+    echo "=== 服务 ==="
+    systemctl is-active "$SERVICE" >/dev/null 2>&1 && echo "运行中" || echo "未运行"
+    systemctl --no-pager --lines=0 status "$SERVICE" 2>/dev/null | sed -n '1,10p' || true
+    echo
+    echo "=== 端口 ==="
+    local p
+    for p in "${WS_PORT:-8081}" "${STATUS_PORT:-8082}" "${CAMERA_PORT:-8083}"; do
+        [ "${p:-0}" = "0" ] && continue
+        port_listening tcp "$p" && echo "TCP $p 监听中" || echo "TCP $p 未监听"
+    done
+    [ "${BEACON_PORT:-0}" != "0" ] && { port_listening udp "${BEACON_PORT}" && echo "UDP ${BEACON_PORT} 监听中" || echo "UDP ${BEACON_PORT} 未监听"; }
+    echo
+    echo "=== 连接地址 ==="
+    echo "ws://<机器人IP>:${WS_PORT:-8081}"
+}
+
+cmd_check() {
+    local ok=1
+    echo "配置文件：$CONF"
+    if [ -f "$CONF" ]; then echo "  ok"; else echo "  缺失"; ok=0; fi
+    [ -f "$ENTRY" ] && echo "程序：$ENTRY ok" || { echo "程序：$ENTRY 缺失"; ok=0; }
+
+    if /usr/bin/python3 -c "import websockets" 2>/dev/null; then
+        echo "Python 依赖 websockets：ok"
+    else
+        echo "Python 依赖 websockets：缺失（sudo apt install python3-websockets）"; ok=0
+    fi
+
+    load_conf
+    local item missing=()
+    IFS=':' read -r -a _setups <<< "${ROS_SETUP:-}"
+    for item in "${_setups[@]}"; do
+        [ -n "$item" ] || continue
+        [ -f "$item" ] || missing+=("$item")
+    done
+    if [ "${#missing[@]}" -eq 0 ]; then
+        echo "ROS 2 环境：齐全"
+    else
+        echo "ROS 2 环境：缺少 ${missing[*]}（dry-run 可忽略）"
+    fi
+
+    local p
+    for p in "${WS_PORT:-8081}" "${STATUS_PORT:-8082}" "${CAMERA_PORT:-8083}"; do
+        [ "${p:-0}" = "0" ] && continue
+        port_listening tcp "$p" && echo "TCP $p：已被占用（若是旧实例请先 stop）" || echo "TCP $p：空闲"
+    done
+    [ "${BEACON_PORT:-0}" != "0" ] && { port_listening udp "${BEACON_PORT}" && echo "UDP ${BEACON_PORT}：已被占用" || echo "UDP ${BEACON_PORT}：空闲"; }
+
+    [ "$ok" -eq 1 ] || return 1
+    echo "自检完成"
+}
+
+case "${1:-}" in
+    _exec)   cmd_exec ;;
+    run)     cmd_exec ;;
+    start)   need_root start;   systemctl start "$SERVICE" && systemctl --no-pager --lines=0 status "$SERVICE" ;;
+    stop)    need_root stop;    systemctl stop "$SERVICE" ;;
+    restart) need_root restart; systemctl restart "$SERVICE" && sleep 1 && cmd_status ;;
+    status)  cmd_status ;;
+    logs)    shift; journalctl -u "$SERVICE" -n 200 "$@" ;;
+    config)
+        shift
+        if [ $# -gt 0 ]; then
+            need_root config
+            "${1:-vi}" "$CONF"
+        else
+            cat "$CONF"
+        fi
+        ;;
+    check)   cmd_check ;;
+    ""|-h|--help|help)
+        cat <<'EOF'
+robot-editor — TienKung Dex 桥接服务管理命令
+
+  sudo robot-editor start | stop | restart   通过 systemd 管理服务
+       robot-editor status                   服务状态 + 端口监听 + 连接地址
+       robot-editor logs [-f]                查看日志（journald）
+       robot-editor config [编辑器]           查看 / 编辑配置
+       robot-editor check                    安装自检（配置/依赖/ROS/端口）
+       robot-editor run                      前台运行（无 systemd 时用，Ctrl+C 停止）
+EOF
+        ;;
+    *) echo "未知命令：$1（可用 start/stop/restart/status/logs/config/check/run）" >&2; exit 2 ;;
+esac

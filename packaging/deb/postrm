@@ -1,0 +1,12 @@
+#!/bin/sh
+# robot-editor 卸载后：刷新 systemd；purge 时清掉程序与前端产物（/etc 配置由 dpkg 处理）。
+set -e
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+
+if [ "$1" = "purge" ]; then
+    rm -rf /opt/robot-editor 2>/dev/null || true
+    rm -rf /var/www/robot-editor 2>/dev/null || true
+fi
+
+exit 0
