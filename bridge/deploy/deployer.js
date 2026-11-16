@@ -274,7 +274,9 @@ function buildArgs(firmware, model, ports) {
 }
 
 function buildRunScript(firmware, model, ports) {
-    const lines = ['#!/usr/bin/env bash', 'set -uo pipefail', 'cd "$(dirname "$0")"'];
+    // 不能用 set -u：ROS 2 的 setup.bash 会引用未定义的 AMENT_TRACE_SETUP_FILES
+    // 等变量，在 nounset 下会直接中止脚本，导致真机固件启动失败。
+    const lines = ['#!/usr/bin/env bash', 'set -o pipefail', 'cd "$(dirname "$0")"'];
     if (firmware.runtime === 'python') {
         for (const setup of firmware.rosSetup || []) {
             lines.push(`if [ -f ${setup} ]; then source ${setup}; fi`);

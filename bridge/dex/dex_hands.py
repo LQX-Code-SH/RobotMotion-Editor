@@ -10,11 +10,15 @@ BrainCo:
 
 Inspire:
   命令 /{side}_hand/angle_set（inspire_hand_msgs/SetAngle）
-        hand_id（1=左 2=右），joint_values[13] 0..1000
+        hand_id（1=左 2=右），joint_values[13] 为 0.1° 角码（不是 0..1000）
   反馈 /{side}_hand/angle_actual（GetAngleAct.joint_values + joint_names[13]）
   清错 /inspire_hand/set_clear_error/{side}_hand（bodyctrl_msgs/SetClearError）
 
-对外统一使用归一化 0..1，桥接层负责单位换算；手型由 --hand 或自动探测决定。
+因时 13 通道每个通道有独立的码上下限/零位/方向（见 INSPIRE_CHANNELS），
+不能按统一 0..1000 线性换算；本文件按 Thinker-IL-LAB 的通道表逐通道映射。
+
+对外统一使用归一化 0..1（屈曲通道 0=伸直、1=闭合；侧摆通道 0=下限、1=上限），
+桥接层负责单位换算；手型由 --hand 或自动探测决定。
 """
 
 from __future__ import annotations
@@ -28,12 +32,94 @@ BRAINCO_MOTORS = 6
 INSPIRE_JOINTS = 13
 BRAINCO_INDEX = ['thumb_flex', 'thumb_rotate', 'index', 'middle', 'ring', 'pinky']
 
+# 因时 RH56 系列 13 通道：(通道名, 码下限, 码上限, 0 rad 对应码, 方向)。
+# 码值单位 0.1°，与 inspire_hand_msgs/SetAngle、GetAngleAct 一致。
+# 屈曲通道码值越大越伸直（方向 -1）；侧摆通道零位 0、方向 +1。
+# 口径来源：Thinker-IL-LAB ubt_IL/tienkung_dex（真机实采）。
+INSPIRE_CHANNELS = (
+    ('pinky_mcp', 900, 1650, 1650, -1),    # 0  小拇指指根
+    ('ring_mcp', 900, 1650, 1650, -1),     # 1  无名指指根
+    ('middle_mcp', 900, 1650, 1650, -1),   # 2  中指指根
+    ('middle_yaw', -150, 150, 0, +1),      # 3  中指侧摆
+    ('index_mcp', 900, 1650, 1650, -1),    # 4  食指指根
+    ('index_yaw', -150, 150, 0, +1),       # 5  食指侧摆
+    ('pinky_pip', 1150, 1900, 1900, -1),   # 6  小拇指指中
+    ('ring_pip', 1150, 1900, 1900, -1),    # 7  无名指指中
+    ('middle_pip', 1150, 1900, 1900, -1),  # 8  中指指中
+    ('index_pip', 1150, 1900, 1900, -1),   # 9  食指指中
+    ('thumb_yaw', 650, 1750, 1750, -1),    # 10 大拇指侧摆
+    ('thumb_mcp', 1250, 1600, 1600, -1),   # 11 大拇指一关节弯曲
+    ('thumb_pip', 1500, 2040, 2040, -1),   # 12 大拇指二关节弯曲
+)
+
+
+def _to_list(value):
+    """安全地把 ROS 序列字段转成 list。
+
+    驱动进程若用 numpy 构造消息，rclpy 交付的 sequence 字段可能是
+    numpy.ndarray；此时 `value or []` 会抛 "truth value of an array is
+    ambiguous" 的 ValueError，回调被 except 吞掉后状态就永远停在初值。
+    """
+    if value is None:
+        return []
+    try:
+        return list(value)
+    except TypeError:
+        return []
+
 
 def _try_import(package):
     try:
         return importlib.import_module(f'{package}.msg')
     except Exception:
         return None
+
+
+def _status_qos(depth=10):
+    """手部状态订阅统一用 BEST_EFFORT。
+
+    QoS 兼容性是单向的：BEST_EFFORT 订阅能收 RELIABLE 与 BEST_EFFORT 两种
+    发布端，反之收不到。手部反馈是缓存语义，丢一帧无影响。
+    """
+    from rclpy.qos import (DurabilityPolicy, HistoryPolicy, QoSProfile,
+                           ReliabilityPolicy)
+    return QoSProfile(
+        reliability=ReliabilityPolicy.BEST_EFFORT,
+        durability=DurabilityPolicy.VOLATILE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=depth,
+    )
+
+
+def inspire_code_to_norm(channel, code):
+    """因时通道码（0.1°）-> 归一化 0..1。
+
+    屈曲通道 0=伸直（码上限）、1=闭合（码下限）；侧摆通道按行程线性映射。
+    码值低于通道下限（驱动读失败时常见 -1）返回 None，由调用方保留上次值。
+    """
+    _, low, high, _zero, direction = INSPIRE_CHANNELS[int(channel)]
+    try:
+        value = float(code)
+    except (TypeError, ValueError):
+        return None
+    if value < low:
+        return None
+    value = min(value, high)
+    if direction < 0:
+        return (high - value) / float(high - low)
+    return (value - low) / float(high - low)
+
+
+def inspire_norm_to_code(channel, value):
+    """归一化 0..1 -> 因时通道码（0.1°），超出通道行程时夹到上下限。"""
+    _, low, high, _zero, direction = INSPIRE_CHANNELS[int(channel)]
+    try:
+        ratio = max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        ratio = 0.0
+    if direction < 0:
+        return int(round(high - ratio * (high - low)))
+    return int(round(low + ratio * (high - low)))
 
 
 class BaseHands:
@@ -105,7 +191,7 @@ class BrainCoHands(BaseHands):
             if self._status_cls is not None:
                 self._subs.append(node.create_subscription(
                     self._status_cls, f'/{side}_hand/motor_status',
-                    (lambda msg, s=side: self._on_status(s, msg)), 10))
+                    (lambda msg, s=side: self._on_status(s, msg)), _status_qos()))
         self.log('[hands] BrainCo 6 电机双手已就绪')
         self._wait_publishers()
 
@@ -169,7 +255,7 @@ class InspireHands(BaseHands):
             if self._status_cls is not None:
                 self._subs.append(node.create_subscription(
                     self._status_cls, f'/{side}_hand/angle_actual',
-                    (lambda msg, s=side: self._on_status(s, msg)), 10))
+                    (lambda msg, s=side: self._on_status(s, msg)), _status_qos()))
         self._clear_cli = {}
         self._setup_clear_error()
         self.log('[hands] Inspire 13 关节双手已就绪')
@@ -187,13 +273,20 @@ class InspireHands(BaseHands):
             self._clear_cli = {}
 
     def _on_status(self, side, msg):
-        try:
-            values = list(getattr(msg, 'joint_values', []) or [])[:INSPIRE_JOINTS]
-            names = list(getattr(msg, 'joint_names', []) or [])[:INSPIRE_JOINTS]
-        except Exception:
+        values = _to_list(getattr(msg, 'joint_values', None))[:INSPIRE_JOINTS]
+        names = _to_list(getattr(msg, 'joint_names', None))[:INSPIRE_JOINTS]
+        if not values:
             return
         with self._lock:
-            self._state[side] = [max(0.0, min(1.0, float(v) / 1000.0)) for v in values]
+            previous = self._state.get(side) or []
+            normalized = []
+            for index, code in enumerate(values):
+                value = inspire_code_to_norm(index, code)
+                if value is None:
+                    # 驱动读失败时常见 -1，保留上次值，避免手指显示成完全闭合
+                    value = previous[index] if index < len(previous) else 0.0
+                normalized.append(max(0.0, min(1.0, value)))
+            self._state[side] = normalized
             if names:
                 self._names[side] = [str(n) for n in names]
 
@@ -204,7 +297,8 @@ class InspireHands(BaseHands):
         padded += [0.0] * (INSPIRE_JOINTS - len(padded))
         msg = self._cmd_cls()
         msg.hand_id = 1 if side == 'left' else 2
-        msg.joint_values = [int(round(max(0.0, min(1.0, float(v))) * 1000)) for v in padded]
+        # 0..1 -> 每通道 0.1° 角码；0 = 伸直（码上限）、1 = 闭合（码下限）
+        msg.joint_values = [inspire_norm_to_code(i, v) for i, v in enumerate(padded)]
         self._pubs[side].publish(msg)
         with self._lock:
             self._state[side] = [max(0.0, min(1.0, float(v))) for v in padded]

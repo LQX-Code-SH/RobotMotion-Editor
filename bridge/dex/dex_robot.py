@@ -40,6 +40,22 @@ MODE_POSITION = 0
 MODE_IMPEDANCE = 1
 
 
+def _status_qos(depth=10):
+    """状态订阅统一 BEST_EFFORT：兼容 RELIABLE / BEST_EFFORT 两种发布端。
+
+    真机各节点 QoS 不由桥接决定；RELIABLE 订阅遇到 BEST_EFFORT 发布端会
+    表现为"话题可见、echo 有数、桥接收不到"。状态是缓存语义，丢帧无影响。
+    """
+    from rclpy.qos import (DurabilityPolicy, HistoryPolicy, QoSProfile,
+                           ReliabilityPolicy)
+    return QoSProfile(
+        reliability=ReliabilityPolicy.BEST_EFFORT,
+        durability=DurabilityPolicy.VOLATILE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=depth,
+    )
+
+
 class DexRobot:
     """关节组控制与状态缓存。"""
 
@@ -108,7 +124,7 @@ class DexRobot:
             self._pubs[group] = self.node.create_publisher(
                 self._msg_cls[group], f'/{group}/cmd', 10)
         self._state_sub = self.node.create_subscription(
-            self._robot_state_cls, '/robot_state', self._on_robot_state, 10)
+            self._robot_state_cls, '/robot_state', self._on_robot_state, _status_qos())
         self._setup_estop_sub()
         period = 1.0 / self.rate_hz
         self._timer = self.node.create_timer(period, self._tick)
@@ -127,7 +143,7 @@ class DexRobot:
             return
         try:
             self._estop_sub = self.node.create_subscription(
-                cls, '/power/board/key_status', self._on_key_status, 10)
+                cls, '/power/board/key_status', self._on_key_status, _status_qos())
         except Exception as exc:
             self.log(f'[dex] 警告：急停话题订阅失败：{exc}')
 

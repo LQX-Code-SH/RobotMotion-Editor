@@ -127,19 +127,22 @@ def hands_joint_map(vendor, side):
             f'{prefix}_pinky_proximal_joint',
         ]
     if vendor == 'inspire':
+        # 顺序必须与 inspire_hand_msgs/angle_actual 的 13 通道一致
+        # （pinky→ring→middle→index→thumb，见 dex_hands.INSPIRE_CHANNELS），
+        # 否则手部幽灵层会把通道值套到错误的手指上。
         return [
+            f'{prefix}_pinky_mcp_joint',
+            f'{prefix}_ring_mcp_joint',
+            f'{prefix}_middle_mcp_joint',
+            f'{prefix}_middle_yaw_joint',
+            f'{prefix}_index_mcp_joint',
+            f'{prefix}_index_yaw_joint',
+            f'{prefix}_pinky_pip_joint',
+            f'{prefix}_ring_pip_joint',
+            f'{prefix}_middle_pip_joint',
+            f'{prefix}_index_pip_joint',
             f'{prefix}_thumb_yaw_joint',
             f'{prefix}_thumb_mcp_joint',
             f'{prefix}_thumb_pip_joint',
-            f'{prefix}_thumb_dip_joint',
-            f'{prefix}_index_mcp_joint',
-            f'{prefix}_index_pip_joint',
-            f'{prefix}_index_dip_joint',
-            f'{prefix}_middle_mcp_joint',
-            f'{prefix}_middle_pip_joint',
-            f'{prefix}_middle_dip_joint',
-            f'{prefix}_ring_mcp_joint',
-            f'{prefix}_ring_pip_joint',
-            f'{prefix}_pinky_mcp_joint',
         ]
     return []

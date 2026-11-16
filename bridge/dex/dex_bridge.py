@@ -31,6 +31,7 @@ import asyncio
 import json
 import math
 import os
+import signal
 import socket
 import threading
 import time
@@ -338,6 +339,12 @@ class FakeCameraManager:
     def unsubscribe_token(self, token):
         pass
 
+    def describe(self):
+        return []
+
+    def info(self, camera_id):
+        return {'topic': None, 'transport': None}
+
     def shutdown(self):
         pass
 
@@ -440,10 +447,7 @@ class DexBridge:
 
     def welcome_payload(self, channel=CHANNEL_CONTROL):
         hands = self.hands.describe() if self.hands else {'vendor': 'none', 'sides': {}}
-        cameras = []
-        if self.cameras and self.cameras.available:
-            from dex_camera import camera_list
-            cameras = camera_list()
+        cameras = self.cameras.describe() if (self.cameras and self.cameras.available) else []
 
         # 手部关节不参与关节目标协议，但需出现在 joints 列表里，
         # 以免网页端把模型中的手指关节误判为"真机上不存在"。
@@ -507,8 +511,10 @@ class DexBridge:
     async def send(self, ws, payload):
         try:
             await ws.send(json.dumps(payload, ensure_ascii=False))
-        except Exception:
+        except Exception as exc:
             self.clients.pop(ws, None)
+            # 静默吞掉发送异常会表现成"服务端在收帧、网页端收不到"，必须留痕
+            self.log(f'[ws] 发送失败：{type(exc).__name__}: {exc}')
 
     async def broadcast(self, payload, skip=None, channels=(CHANNEL_CONTROL,)):
         targets = [
@@ -567,6 +573,26 @@ class DexBridge:
             if self.cameras:
                 self.cameras.unsubscribe_token(token)
             self.log(f'[ws] 客户端断开（当前 {len(self.clients)}）')
+
+    def _push_camera_frame(self, ws, payload):
+        """从 ROS 回调线程把帧投递到 asyncio 事件循环。
+
+        run_coroutine_threadsafe 返回的 future 若没人取异常就会被静默丢弃，
+        表现为"相机在收帧但网页端一帧也收不到"，因此这里必须留痕。
+        """
+        if not self.loop or self.loop.is_closed():
+            return
+        future = asyncio.run_coroutine_threadsafe(self.send(ws, payload), self.loop)
+
+        def _report(done):
+            try:
+                error = done.exception()
+            except Exception:
+                return
+            if error is not None:
+                self.log(f'[camera] 帧推送失败：{type(error).__name__}: {error}')
+
+        future.add_done_callback(_report)
 
     async def handle(self, ws, token, msg):
         kind = msg.get('type')
@@ -652,12 +678,12 @@ class DexBridge:
                     'width': width, 'height': height, 'stamp': stamp,
                     'bytes': size, 'data': data,
                 }
-                if self.loop:
-                    asyncio.run_coroutine_threadsafe(self.send(ws, payload), self.loop)
+                self._push_camera_frame(ws, payload)
 
             ok, reason = self.cameras.subscribe(camera, token, fps, on_frame)
             await self.send(ws, {'type': 'ack', 'for': 'camera_subscribe',
-                                 'camera': camera, 'accepted': ok, 'reason': reason or None})
+                                 'camera': camera, 'accepted': ok, 'reason': reason or None,
+                                 **self.cameras.info(camera)})
             return
 
         if kind == 'camera_unsubscribe':
@@ -778,6 +804,18 @@ class DexBridge:
 def main():
     args = parse_args()
     bridge = DexBridge(args)
+
+    # rclpy.init() 会注册自己的 SIGTERM 处理器，但主线程此时阻塞在 asyncio
+    # Future 上，收到信号也不会退出，进程会忽略 kill。这里在桥接初始化之后
+    # 覆盖为抛出 KeyboardInterrupt，确保部署器的 stop/restart 能正常生效。
+    def _on_terminate(signum, frame):
+        raise KeyboardInterrupt
+
+    try:
+        signal.signal(signal.SIGTERM, _on_terminate)
+    except Exception:
+        pass
+
     try:
         asyncio.run(bridge.run())
     except KeyboardInterrupt:
