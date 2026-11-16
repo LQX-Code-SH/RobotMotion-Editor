@@ -1,9 +1,12 @@
 [Unit]
-Description=TienKung Dex bridge (robot-editor)
+Description=Robot Motion Editor (bridge + web frontend)
 Documentation=file:/usr/share/doc/robot-editor/USAGE.md
+# 本项目作为一个整体管理：start 同时拉起前端 nginx，stop 同时停掉前端。
 # ROS 2 的 DDS 依赖网络就绪；不要求图形会话
-After=network-online.target
-Wants=network-online.target
+After=network-online.target nginx.service
+Wants=network-online.target nginx.service
+# systemd >= 249：停止本单元时同步停止 nginx（restart 不影响 nginx）
+PropagatesStopTo=nginx.service
 
 [Service]
 Type=simple

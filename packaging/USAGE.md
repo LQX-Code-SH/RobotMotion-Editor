@@ -25,12 +25,18 @@ sudo apt install ./robot-editor_<version>_<arch>.deb
 
 ```bash
 sudo robot-editor config nano        # 编辑 ROS_SETUP / 端口 / 手型 / spd / cur
-robot-editor check                   # 自检：配置/依赖/ROS 环境/端口
-sudo systemctl enable --now robot-editor   # 开机自启 + 立即启动
-robot-editor status                  # 服务 + 端口 + 连接地址
+robot-editor check                   # 自检：配置/依赖/ROS 环境、端口
+sudo systemctl enable --now robot-editor   # 开机自启 + 立即启动（同时拉起前端 nginx）
+robot-editor status                  # 桥接 + nginx 状态、端口、连接地址
 robot-editor logs -f                 # 实时日志（journald）
-sudo robot-editor restart            # 改完配置重启
+sudo robot-editor restart            # 改完配置重启桥接
 ```
+
+`robot-editor.service` 按"本项目是一个整体"设计：
+
+- `start robot-editor` → 同时启动**桥接 + 前端 nginx**（`Wants=nginx.service`）；
+- `stop robot-editor` → **同时停止桥接与前端**（`PropagatesStopTo=nginx.service`，systemd ≥ 249）；
+- `restart robot-editor` 只重启桥接，nginx 不动（前端是静态文件，无需重启）。
 
 关键配置项：
 

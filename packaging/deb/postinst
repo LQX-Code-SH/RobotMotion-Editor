@@ -19,10 +19,12 @@ if [ -d "$WEB_ROOT" ]; then
     chown -R www-data:www-data "$WEB_ROOT" 2>/dev/null || true
 fi
 if nginx -t >/dev/null 2>&1; then
+    # 只启动、不单独 enable：本项目按整体管理，开机自启统一由
+    # `systemctl enable robot-editor` 连带拉 frontend（Wants=nginx.service）。
     if systemctl is-active nginx >/dev/null 2>&1; then
         systemctl reload nginx >/dev/null 2>&1 || true
     else
-        systemctl enable --now nginx >/dev/null 2>&1 || true
+        systemctl start nginx >/dev/null 2>&1 || true
     fi
 else
     echo "robot-editor: 警告：nginx 配置校验失败，请执行 sudo nginx -t 查看原因" >&2
@@ -54,7 +56,7 @@ robot-editor 已安装。
   网页      : http://<本机IP>:3000
   桥接配置  : $CONF
   桥接启停  : sudo robot-editor start|stop|restart|status|logs
-  开机自启  : sudo systemctl enable --now robot-editor
+  开机自启  : sudo systemctl enable --now robot-editor（连带前端 nginx）
   桥接自检  : robot-editor check
 
 前端产物已随包安装（$WEB_ROOT），不依赖源码目录。
