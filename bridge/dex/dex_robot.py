@@ -261,7 +261,10 @@ class DexRobot:
         frames = traj['frames']
         if elapsed >= frames[-1]['t']:
             if traj['loop']:
+                # 回到首帧重新播放：必须同时重置 idx，否则会卡在末帧永远不动
                 traj['start'] = time.monotonic()
+                traj['idx'] = 0
+                self._targets.update(frames[0]['targets'])
                 return
             self._targets.update(frames[-1]['targets'])
             traj['idx'] = len(frames)

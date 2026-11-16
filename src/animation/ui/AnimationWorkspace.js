@@ -21,6 +21,9 @@ export class AnimationWorkspace {
         this.visible = false;
         this.playToRobotHandler = null;   // (clip) => Promise，由 main 注入真机连接模块
         this.robotAvailable = false;      // 真机是否已连接
+        this.syncControlActive = false;   // 「真机同步控制」是否开启（与真机播放互斥）
+        this.robotPlaybackBusy = false;   // 真机正在执行动作/播放
+        this._robotPlayTimer = null;      // 真机播放联动时间轴的延迟启动
         this.autoKey = true;
         this.viewMode = 'timeline';
         this.clipboard = null;
@@ -76,7 +79,6 @@ export class AnimationWorkspace {
                 <div class="animation-title">
                     <span class="animation-title-mark">◆</span>
                     <span data-i18n="animationEditor">Animation Editor</span>
-                    <span class="animation-experimental-badge" data-i18n="animationExperimental">Experimental · In development</span>
                 </div>
                 <div class="animation-tool-group animation-clip-group">
                     <select class="animation-select animation-clip-select" data-action="clip" title="Animation" data-i18n-title="animationClip"></select>
@@ -764,11 +766,38 @@ export class AnimationWorkspace {
     /** 真机连接状态变化时更新按钮可用性 */
     setRobotAvailable(available) {
         this.robotAvailable = Boolean(available);
+        this.refreshRobotButton();
+    }
+
+    /**
+     * 「真机同步控制」状态变化：「真机播放」与它互斥，
+     * 动画的真机控制只走「真机播放」这一条通路。
+     */
+    setSyncControlActive(active) {
+        this.syncControlActive = Boolean(active);
+        this.refreshRobotButton();
+    }
+
+    /** 真机正在执行动作/播放：暂时禁用「真机播放」，避免重复下发。 */
+    setRobotPlaybackBusy(busy) {
+        this.robotPlaybackBusy = Boolean(busy);
+        this.refreshRobotButton();
+    }
+
+    refreshRobotButton() {
         if (!this.playToRobotButton) return;
-        this.playToRobotButton.disabled = !this.robotAvailable;
-        this.playToRobotButton.title = this.robotAvailable
-            ? this.translate('playToRobotTitle')
-            : this.translate('playToRobotOffline');
+        this.playToRobotButton.disabled = !(this.robotAvailable
+            && !this.syncControlActive
+            && !this.robotPlaybackBusy);
+        if (!this.robotAvailable) {
+            this.playToRobotButton.title = this.translate('playToRobotOffline');
+        } else if (this.syncControlActive) {
+            this.playToRobotButton.title = this.translate('playToRobotSyncOn');
+        } else if (this.robotPlaybackBusy) {
+            this.playToRobotButton.title = this.translate('playToRobotBusy');
+        } else {
+            this.playToRobotButton.title = this.translate('playToRobotTitle');
+        }
     }
 
     async playToRobot() {
@@ -781,8 +810,53 @@ export class AnimationWorkspace {
             this.showToast(this.translate('playToRobotOffline'));
             return;
         }
+        if (this.syncControlActive) {
+            this.showToast(this.translate('playToRobotSyncOn'));
+            return;
+        }
         this.showToast(this.translate('playToRobotRunning'));
         await this.playToRobotHandler(clip);
+    }
+
+    /**
+     * 真机播放联动：时间轴按 playRange 单次播放（不循环）。
+     * 真机先走「从当前位姿到首帧」的过渡段，动画画面延迟同样时长再开始，两者节奏一致。
+     *
+     * @param {number} [delayMs] 过渡段时长
+     * @param {object} [clip] 期望联动的 clip（延迟期间切换了 clip 就不联动）
+     * @returns {boolean} 是否已开始联动
+     */
+    startRobotPlayback(delayMs = 0, clip = null) {
+        const active = this.store.activeClip;
+        if (!this.visible || !active) return false;
+        if (clip && active.id !== clip.id) return false;
+        clearTimeout(this._robotPlayTimer);
+        this._robotPlayTimer = null;
+
+        // 过渡段期间视口先停在动画首帧（也就是真机正在趋近的目标），过渡结束后再开播
+        this.playback.loopOverride = false;
+        this.playback.seek(active.playRange?.startMs ?? 0);
+
+        const begin = () => {
+            this._robotPlayTimer = null;
+            if (!this.visible || this.store.activeClip?.id !== active.id) return;
+            this.playback.play();
+        };
+        if (delayMs > 0) this._robotPlayTimer = setTimeout(begin, delayMs);
+        else begin();
+        return true;
+    }
+
+    /** 真机播放结束/停止：暂停联动播放并恢复 clip 自身的循环设置。 */
+    stopRobotPlayback() {
+        if (this._robotPlayTimer) {
+            clearTimeout(this._robotPlayTimer);
+            this._robotPlayTimer = null;
+        }
+        if (this.playback.loopOverride === false) {
+            this.playback.pause();
+            this.playback.loopOverride = null;
+        }
     }
 
     storageKey() {
@@ -858,6 +932,7 @@ export class AnimationWorkspace {
     close() {
         this.visible = false;
         this.stopRecording();
+        this.stopRobotPlayback();
         this.playback.pause();
         this.root.hidden = true;
         this.inputDialog.hidden = true;

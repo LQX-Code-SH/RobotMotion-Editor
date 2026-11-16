@@ -1,6 +1,5 @@
 import { RobotBridgeClient, scanDevices } from './RobotBridgeClient.js';
 import { RobotCameraUI } from './RobotCameraUI.js';
-import { evaluateClip } from '../animation/core/BezierEvaluator.js';
 import {
     filterSyncPose,
     hasPoseChanged,
@@ -9,6 +8,7 @@ import {
     SYNC_SEND_INTERVAL_MS
 } from './robotSync.js';
 import {
+    BRIDGE_RAMP_RAD_S,
     HAND_MIN_DURATION_MS,
     HAND_SEND_HZ,
     MOTION_DONE_MARGIN_MS,
@@ -18,9 +18,12 @@ import {
     degToRad,
     handPoseFromState,
     homeTargetsFor,
+    planClipHands,
     planHandMove,
     planHandRamp,
     planJointTrajectory,
+    prependLeadIn,
+    sampleClipTrajectory,
     selectUpperBodyTargets,
     upperBodyJointNames
 } from './robotMotion.js';
@@ -114,6 +117,7 @@ export class RobotConnectionUI {
         }
         this._restoreHelpState();
         this._updateHomeInfo();
+        this._updateAnimationRobotControls();
     }
 
     /** 操作站地址：显式 http 地址则用之，否则默认页面同主机 :8090 */
@@ -265,6 +269,12 @@ export class RobotConnectionUI {
         const next = Boolean(enabled);
         const toggle = document.getElementById('robot-sync-control-toggle');
 
+        // 真机正在执行轨迹/播放时不允许开启同步控制（两条控制通路互斥）
+        if (next && this._motionBusy) {
+            if (toggle) toggle.checked = false;
+            this.appendLog('warning', '真机正在执行动作/播放，请等待完成或点「停止」后再开启同步控制。');
+            return;
+        }
         if (next && (!this.client.connected || !this.device)) {
             if (toggle) toggle.checked = false;
             this.appendLog('error', '尚未连接机器人，无法开启真机同步控制。');
@@ -318,6 +328,8 @@ export class RobotConnectionUI {
             if (!silent) this.appendLog('system', '真机同步控制已关闭。');
         }
         this._updateReadPoseButton();
+        // 「真机播放」与同步控制互斥：开关状态变了就同步动画编辑器按钮
+        this._updateAnimationRobotControls();
     }
 
     /** 真机姿态幽灵层显示开关。 */
@@ -676,9 +688,28 @@ export class RobotConnectionUI {
         this.state = state;
         this.stateMessage = message;
         this.updateConnectionInfo();
-        // 动画编辑器的“真机播放”按钮跟随连接状态
-        this.animationWorkspace?.setRobotAvailable?.(state === 'connected');
+        // 动画编辑器的“真机播放”按钮跟随连接状态与同步控制状态
+        this._updateAnimationRobotControls();
         this._updateReadPoseButton();
+    }
+
+    /** 同步「真机播放」按钮与「真机同步控制」开关的可用性（两者互斥）。 */
+    _updateAnimationRobotControls() {
+        const connected = this.state === 'connected' && Boolean(this.device);
+        this.animationWorkspace?.setRobotAvailable?.(connected);
+        this.animationWorkspace?.setSyncControlActive?.(this.syncControlEnabled);
+        this.animationWorkspace?.setRobotPlaybackBusy?.(this._motionBusy);
+        const toggle = document.getElementById('robot-sync-control-toggle');
+        if (toggle) toggle.disabled = !connected || this._motionBusy;
+    }
+
+    /**
+     * 动作锁：执行轨迹（发送位姿/回零/真机播放）期间禁用「真机同步控制」，
+     * 保证同一时刻只有一条控制通路在下发真机。
+     */
+    _setMotionBusy(busy) {
+        this._motionBusy = Boolean(busy);
+        this._updateAnimationRobotControls();
     }
 
     disconnect() {
@@ -1039,7 +1070,7 @@ export class RobotConnectionUI {
             return false;
         }
 
-        this._motionBusy = true;
+        this._setMotionBusy(true);
         this._syncSuspended = true;
         this._lastSentPose = null;
         this._clearMotionTimer();
@@ -1059,7 +1090,7 @@ export class RobotConnectionUI {
             this._armMotionTimeout(plan.durationMs);
             return true;
         } catch (error) {
-            this._motionBusy = false;
+            this._setMotionBusy(false);
             this._syncSuspended = false;
             this.appendLog('error', `${label}下发失败：${error.message}`);
             return false;
@@ -1081,28 +1112,43 @@ export class RobotConnectionUI {
 
         const handDuration = Math.max(durationMs, HAND_MIN_DURATION_MS);
         const ramps = {};
-        let steps = 0;
         for (const [side, { from, to }] of sides) {
             const ramp = planHandRamp({ from, to, durationMs: handDuration, hz: HAND_SEND_HZ });
             if (!ramp.frames.length) continue;
             ramps[side] = ramp.frames;
-            steps = Math.max(steps, ramp.frames.length);
         }
-        if (!steps) return;
+        this._streamHandFrames(ramps);
+    }
 
-        let index = 0;
+    /**
+     * 按时间轴下发手部归一化帧（每帧 {t: ms, values}，相对下发时刻）。
+     * 用已过时间选帧而不是帧号累加，避免定时器抖动导致手部越跑越快。
+     */
+    _streamHandFrames(sides) {
+        this._clearHandTimer();
+        const entries = Object.entries(sides || {})
+            .filter(([, frames]) => Array.isArray(frames) && frames.length)
+            .map(([side, frames]) => ({ side, frames, cursor: 0 }));
+        if (!entries.length) return;
+
+        const startedAt = performance.now();
+        const endMs = Math.max(...entries.map(entry => entry.frames[entry.frames.length - 1].t));
         const tick = () => {
-            for (const [side, frames] of Object.entries(ramps)) {
-                const frame = frames[Math.min(index, frames.length - 1)];
-                this.client.sendHandTargets(side, frame.values);
-                this._lastHandValues[side] = [...frame.values];
+            const elapsed = performance.now() - startedAt;
+            for (const entry of entries) {
+                while (entry.cursor + 1 < entry.frames.length
+                    && entry.frames[entry.cursor + 1].t <= elapsed) {
+                    entry.cursor += 1;
+                }
+                const frame = entry.frames[entry.cursor];
+                this.client.sendHandTargets(entry.side, frame.values);
+                this._lastHandValues[entry.side] = [...frame.values];
                 this._lastSentHandTargets = {
                     ...(this._lastSentHandTargets || {}),
-                    [side]: [...frame.values]
+                    [entry.side]: [...frame.values]
                 };
             }
-            index += 1;
-            if (index >= steps) this._clearHandTimer();
+            if (elapsed >= endMs) this._clearHandTimer();
         };
         this._handTimer = setInterval(tick, Math.max(20, Math.round(1000 / HAND_SEND_HZ)));
         tick();
@@ -1126,8 +1172,10 @@ export class RobotConnectionUI {
         this._motionTimer = setTimeout(() => {
             this._motionTimer = null;
             if (!this._motionBusy) return;
-            this._motionBusy = false;
+            this._setMotionBusy(false);
             this._syncSuspended = false;
+            this._clearHandTimer();
+            this.animationWorkspace?.stopRobotPlayback?.();
             this.appendLog('warning', '未按预期收到轨迹完成回执，已恢复视口同步，请确认真机是否到位。');
             const autoSync = this._autoSyncAfterMove;
             this._autoSyncAfterMove = false;
@@ -1154,6 +1202,7 @@ export class RobotConnectionUI {
     /** 停止/急停/断开时清掉动作与手部时序状态。 */
     _cancelMotion() {
         this._clearMotionTimer();
+        this.animationWorkspace?.stopRobotPlayback?.();
         this._clearHandTimer();
         if (this._syncFromRobotTimer) {
             clearTimeout(this._syncFromRobotTimer);
@@ -1166,65 +1215,181 @@ export class RobotConnectionUI {
         this._pendingHandTargets = null;
         this._autoSyncAfterMove = false;
         this._lastSentHandTargets = null;
-        this._motionBusy = false;
+        this._setMotionBusy(false);
         this._syncSuspended = false;
     }
 
     /**
-     * 把指定动画 clip 采样为关键帧轨迹并下发真机播放。
-     * 入口在动画编辑器工具栏的“真机播放”，由 main.js 注入本方法。
+     * 把动画 clip 播放到真机（**单次播放，不循环**）。
+     *
+     * 流程：采样上肢 → 从真机当前位姿插过渡段 → 手部按同一时间轴走 hand_targets →
+     * 确认后以 execute 轨迹下发；播放期间暂停视口同步，完成后回读实际姿态并恢复 follow。
+     * 入口在动画编辑器工具栏的「真机播放」，由 main.js 注入。
+     *
+     * @param {object} clip 动画 clip
+     * @returns {Promise<boolean>} 是否已开始播放
      */
     async playClip(clip) {
-        if (!this._requireConnected()) return;
+        if (!this._requireConnected(true)) return false;
         if (!clip) {
             this.appendLog('error', '没有可播放的动画 clip。请先在动画编辑器中录制或编辑动作。');
-            return;
+            return false;
         }
-        if (this._motionBusy) {
-            this.appendLog('warning', '「发送当前位姿 / 回零」正在执行，请等待完成或点「停止」。');
-            return;
+        if (this._motionBusy || this._syncSuspended) {
+            this.appendLog('warning', '真机正在执行动作/轨迹，请等待完成或点「停止」。');
+            return false;
+        }
+        if (this.client.status?.estop) {
+            this.appendLog('error', '真机急停激活中，无法播放动画。');
+            return false;
+        }
+        if (this.syncControlEnabled) {
+            this.appendLog('error', '「真机同步控制」开启中：动画的真机控制只用「真机播放」，请先关闭同步控制。');
+            return false;
         }
 
-        const robotJoints = new Set((this.device?.joints || []).map(j => j.name));
-        const fps = Math.max(1, Math.min(120, clip.fps || 30));
         const startMs = clip.playRange?.startMs ?? 0;
         const endMs = clip.playRange?.endMs ?? clip.durationMs ?? 0;
         if (endMs <= startMs) {
             this.appendLog('error', 'clip 播放区间无效。');
-            return;
+            return false;
         }
 
-        // 按固定帧率采样，并过滤真机上不存在的关节
-        const frames = [];
-        let filtered = 0;
-        for (let t = startMs; t <= endMs; t += 1000 / fps) {
-            const pose = evaluateClip(clip, t);
-            const targets = {};
-            for (const [name, value] of Object.entries(pose)) {
-                if (robotJoints.size && !robotJoints.has(name)) { filtered++; continue; }
-                targets[name] = value;
-            }
-            frames.push({ t: Math.round(t - startMs), targets });
+        const fps = Math.min(60, Math.max(1, clip.fps || 30));
+        const sample = sampleClipTrajectory({
+            clip,
+            startMs,
+            endMs,
+            fps,
+            device: this.device
+        });
+        if (!sample.jointNames.length) {
+            this.appendLog('error', '该 clip 没有双臂/腰/头关节的关键帧，真机上没有可执行内容。');
+            return false;
         }
-        if (!frames.length) {
+        if (!sample.frames.length) {
             this.appendLog('error', '轨迹采样结果为空。');
-            return;
+            return false;
         }
-        if (filtered > 0) {
-            this.appendLog('warning', `已过滤 ${filtered} 个真机上不存在的关节采样点。`);
+        this._logClipIgnored(sample.ignored);
+
+        const age = this._telemetryAgeMs();
+        if (age === null || age > TELEMETRY_MAX_AGE_MS) {
+            this.appendLog('warning', '真机遥测不可用/已过期：首帧不做过渡，直接按动画轨迹播放（由桥接斜坡限速）。');
+        }
+        const { from, missing } = this._currentJointPositions(sample.jointNames);
+        const lead = prependLeadIn({
+            frames: sample.frames,
+            from,
+            maxSpeedRadS: this._motionSpeedRadS(),
+            fps: TRAJECTORY_FPS
+        });
+
+        const handPlan = this._planHandForClip({ clip, startMs, endMs, leadInMs: lead.leadInMs });
+        if (sample.ignored.hand.length) {
+            if (handPlan?.hasMotion) {
+                this.appendLog('system', `clip 含 ${sample.ignored.hand.length} 个手指关节：按 hand_targets 同步 ${handPlan.matched} 通道。`);
+            } else {
+                this.appendLog('system', `clip 含 ${sample.ignored.hand.length} 个手指关节，但手型不匹配或无变化，真机播放时手指保持不动。`);
+            }
         }
 
-        this.appendLog('system', `下发轨迹：clip "${clip.name}"，${frames.length} 帧 @ ${fps}fps，时长 ${((endMs - startMs) / 1000).toFixed(1)}s…`);
-        // 轨迹执行期间暂停视口同步控制，避免与轨迹目标互相覆盖
-        this._syncSuspended = true;
-        await this.client.setMode('execute');
-        const ack = await this.client.playTrajectory(frames, fps, !!clip.loop);
-        if (ack.accepted) {
-            this.appendLog('system', `真机开始执行轨迹 ${ack.trajectoryId}（${ack.frameCount ?? frames.length} 帧）。`);
-        } else {
-            this._syncSuspended = false;
-            this.appendLog('error', `轨迹下发失败：${ack.reason || '未知原因'}`);
+        const totalMs = lead.leadInMs + sample.durationMs;
+        const summary = this._clipSummary({ clip, sample, lead, handPlan, missing });
+        if (!this._confirmMotion(summary)) {
+            this.appendLog('system', '已取消真机播放。');
+            return false;
         }
+
+        this._setMotionBusy(true);
+        this._syncSuspended = true;
+        this._lastSentPose = null;
+        this._clearMotionTimer();
+
+        try {
+            const modeAck = await this.client.setMode('execute');
+            if (modeAck?.accepted === false) {
+                throw new Error(`切换 execute 模式失败：${modeAck.reason || '未知原因'}`);
+            }
+            // 真机播放一律单次：无人看管时反复运动会撞到人或物
+            const ack = await this.client.playTrajectory(lead.frames, fps, false);
+            if (!ack?.accepted) throw new Error(ack?.reason || '轨迹被拒绝');
+
+            this.appendLog('system', `开始真机播放「${clip.name}」：${sample.jointNames.length} 关节 / `
+                + `${(sample.durationMs / 1000).toFixed(1)}s`
+                + `${lead.leadInMs > 0 ? `（首段过渡 ${(lead.leadInMs / 1000).toFixed(1)}s）` : ''}`
+                + `${handPlan?.hasMotion ? ` / 手部 ${handPlan.matched} 通道` : ''}`
+                + `，轨迹 ${ack.trajectoryId}。`);
+            if (clip.loop) {
+                this.appendLog('system', '该动画设为循环，真机只播放一遍（不循环）。');
+            }
+            this._autoSyncAfterMove = true;
+            if (handPlan?.hasMotion) this._streamHandFrames(handPlan.sides);
+            this._armMotionTimeout(totalMs);
+            // 视口联动：时间轴按同一节奏单次播放（过渡段有延迟），让用户看到动画
+            this.animationWorkspace?.startRobotPlayback?.(lead.leadInMs, clip);
+            return true;
+        } catch (error) {
+            this._setMotionBusy(false);
+            this._syncSuspended = false;
+            this.appendLog('error', `真机播放失败：${error.message}`);
+            return false;
+        }
+    }
+
+    /** 说明 clip 里哪些关节不参与真机播放（腿由运控独占、其余关节真机没有）。 */
+    _logClipIgnored(ignored) {
+        const leg = ignored?.leg?.length || 0;
+        const other = ignored?.other?.length || 0;
+        if (leg) {
+            this.appendLog('system', `clip 含 ${leg} 个腿部关节：腿由运控独占，真机播放不参与。`);
+        }
+        if (other) {
+            this.appendLog('warning', `已忽略 ${other} 个真机不支持的关节：${ignored.other.slice(0, 4).join(', ')}${other > 4 ? ' …' : ''}`);
+        }
+    }
+
+    /** 真机播放确认摘要：时长、过渡段、峰值速度、不参与部位。 */
+    _clipSummary({ clip, sample, lead, handPlan, missing }) {
+        const seconds = (sample.durationMs / 1000).toFixed(1);
+        const total = ((lead.leadInMs + sample.durationMs) / 1000).toFixed(1);
+        const speedDeg = this._motionSpeedDeg();
+        const peakDeg = Math.round(sample.peakSpeedRadS * 180 / Math.PI);
+        const rampDeg = Math.round(BRIDGE_RAMP_RAD_S * 180 / Math.PI);
+        const lines = [
+            `即将把动画「${clip.name}」播放到真机（只播放一次，不循环）：`,
+            `· 关节 ${sample.jointNames.length} 个（双臂 + 腰 + 头），动画 ${seconds}s，合计约 ${total}s`,
+            lead.leadInMs > 0
+                ? `· 首段从真机当前位姿过渡 ${(lead.leadInMs / 1000).toFixed(1)}s（峰值 ≤ ${speedDeg}°/s）`
+                : '· 首帧与真机当前位姿基本一致，无需过渡段',
+            `· 动画峰值约 ${peakDeg}°/s`
+                + `${peakDeg > rampDeg ? `（超过驱动斜坡 ${rampDeg}°/s，真机会按限速播放，比动画慢）` : ''}`,
+            handPlan?.hasMotion
+                ? `· 手部 ${handPlan.matched} 通道随动画同步`
+                : '· 手指保持当前手型',
+            '· 腿不参与；动画期间保持页面在前台，勿关闭或断网',
+            '· 急停仍在遥控器（双击 C 键）'
+        ];
+        if (missing.length) {
+            lines.splice(lines.length - 2, 0, `· ⚠ ${missing.length} 个关节缺少真机读数，过渡段直接从目标开始`);
+        }
+        lines.push('继续？');
+        return lines.join('\n');
+    }
+
+    /** 动画播放期间的手部通道时序（相对轨迹起点，含过渡段）。 */
+    _planHandForClip({ clip, startMs, endMs, leadInMs }) {
+        const vendor = this.device?.hands?.vendor || 'none';
+        if (vendor === 'none') return null;
+        return planClipHands({
+            clip,
+            hands: this.device?.hands,
+            ranges: this._modelJointRanges(),
+            startBySide: this._currentHandValues(),
+            startMs,
+            endMs,
+            leadInMs
+        });
     }
 
     /**
@@ -1337,7 +1502,8 @@ export class RobotConnectionUI {
 
         this.client.onTrajectoryDone = (msg) => {
             this._clearMotionTimer();
-            this._motionBusy = false;
+            this.animationWorkspace?.stopRobotPlayback?.();
+            this._setMotionBusy(false);
             this._syncSuspended = false;
             this._lastSentPose = null;
             this.appendLog('system', `轨迹 ${msg.trajectoryId} 执行完成。`);

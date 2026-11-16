@@ -72,7 +72,6 @@ export const translations = {
         'modelStructure': '结构',
         'codeEditor': '编辑',
         'animationEditor': '动画编辑器',
-        'animationExperimental': '实验功能 · 仍在开发中',
 
         // 动画编辑器
         'autoKey': '自动关键帧',
@@ -89,8 +88,10 @@ export const translations = {
         'graphView': '曲线',
         'catalogCustom': '＋ 新建机型 / 自定义机型…',
         'playToRobot': '真机播放',
-        'playToRobotTitle': '把当前动画播放到真机',
+        'playToRobotTitle': '把当前动画播放到真机（单次播放）',
         'playToRobotOffline': '未连接真机：请先在“真机控制”面板连接',
+        'playToRobotSyncOn': '「真机同步控制」开启中：动画真机控制只用「真机播放」，请先关闭同步控制',
+        'playToRobotBusy': '真机正在执行动作/播放，请等待完成或点「停止」',
         'playToRobotNoClip': '没有可播放的动画',
         'playToRobotRunning': '正在播放到真机…',
         'addMarker': '标记',
@@ -393,7 +394,6 @@ export const translations = {
         'modelStructure': 'Structure',
         'codeEditor': 'Editor',
         'animationEditor': 'Animation Editor',
-        'animationExperimental': 'Experimental · In development',
 
         // Animation editor
         'autoKey': 'Auto Key',
@@ -410,8 +410,10 @@ export const translations = {
         'graphView': 'Graph',
         'catalogCustom': '＋ New / custom model…',
         'playToRobot': 'Play on Robot',
-        'playToRobotTitle': 'Play current animation on the real robot',
+        'playToRobotTitle': 'Play current animation on the real robot (single shot)',
         'playToRobotOffline': 'Robot not connected: connect in the Robot panel first',
+        'playToRobotSyncOn': 'Robot sync control is on: turn it off to use Play on Robot',
+        'playToRobotBusy': 'Robot is busy: wait for it to finish or press Stop',
         'playToRobotNoClip': 'No animation to play',
         'playToRobotRunning': 'Playing on the robot…',
         'addMarker': 'Marker',

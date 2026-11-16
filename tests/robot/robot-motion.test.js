@@ -8,9 +8,12 @@ import {
     handPoseFromState,
     homeTargetsFor,
     normalizeJointValue,
+    planClipHands,
     planHandMove,
     planHandRamp,
     planJointTrajectory,
+    prependLeadIn,
+    sampleClipTrajectory,
     selectUpperBodyTargets,
     smoothstep,
     upperBodyJointNames
@@ -256,4 +259,141 @@ test('HOME_JOINT_VALUES covers the measured upper body', () => {
 test('degToRad clamps before converting', () => {
     assert.equal(degToRad(90), 45 * Math.PI / 180);
     assert.equal(degToRad(1), 5 * Math.PI / 180);
+});
+
+const linearTrack = (jointName, from, to, durationMs = 1000) => ({
+    type: 'joint',
+    jointName,
+    keyframes: [
+        { timeMs: 0, value: from, interpolation: 'linear' },
+        { timeMs: durationMs, value: to, interpolation: 'linear' }
+    ]
+});
+
+test('sampleClipTrajectory keeps upper body only and reports ignored joints', () => {
+    const clip = {
+        durationMs: 1000,
+        fps: 30,
+        tracks: [
+            linearTrack('shoulder_pitch_l_joint', 0, 1),
+            linearTrack('hip_pitch_l_joint', 0, 0.5),
+            linearTrack('left_index_proximal_joint', 0, 1),
+            linearTrack('spine_joint', 0, 0.2)
+        ]
+    };
+    const sample = sampleClipTrajectory({ clip, startMs: 0, endMs: 1000, fps: 30, device });
+
+    assert.deepEqual(sample.jointNames, ['shoulder_pitch_l_joint']);
+    assert.equal(sample.ignored.leg.length, 1);
+    assert.equal(sample.ignored.hand.length, 1);
+    assert.equal(sample.ignored.other.length, 1);
+    assert.equal(sample.durationMs, 1000);
+    assert.equal(sample.frames[0].t, 0);
+    assert.equal(sample.frames.at(-1).t, 1000);
+    assert.ok(Math.abs(sample.frames.at(-1).targets.shoulder_pitch_l_joint - 1) < 1e-6);
+    assert.ok(Math.abs(sample.peakSpeedRadS - 1) < 0.05, `峰值 ${sample.peakSpeedRadS}`);
+    assert.ok(sample.frames.length >= 30);
+});
+
+test('sampleClipTrajectory honours a sub range of playRange', () => {
+    const clip = { durationMs: 1000, tracks: [linearTrack('shoulder_pitch_l_joint', 0, 1)] };
+    const sample = sampleClipTrajectory({ clip, startMs: 500, endMs: 1000, fps: 30, device });
+    assert.equal(sample.durationMs, 500);
+    assert.equal(sample.frames[0].t, 0);
+    assert.ok(Math.abs(sample.frames[0].targets.shoulder_pitch_l_joint - 0.5) < 1e-6);
+    assert.ok(Math.abs(sample.frames.at(-1).targets.shoulder_pitch_l_joint - 1) < 1e-6);
+});
+
+test('sampleClipTrajectory returns no joints when the clip only animates legs', () => {
+    const clip = { durationMs: 500, tracks: [linearTrack('hip_pitch_l_joint', 0, 0.4, 500)] };
+    const sample = sampleClipTrajectory({ clip, startMs: 0, endMs: 500, fps: 30, device });
+    assert.deepEqual(sample.jointNames, []);
+    assert.deepEqual(sample.frames, []);
+});
+
+test('prependLeadIn ramps from the real pose to the clip first frame', () => {
+    const frames = [
+        { t: 0, targets: { a: 1 } },
+        { t: 100, targets: { a: 1.1 } }
+    ];
+    const lead = prependLeadIn({ frames, from: { a: 0 }, maxSpeedRadS: 0.5, fps: 30 });
+
+    assert.ok(lead.leadInMs > 0);
+    assert.deepEqual(lead.frames[0], { t: 0, targets: { a: 0 } });
+    assert.equal(lead.frames.at(-1).t, lead.leadInMs + 100);
+    const junction = lead.frames.filter(frame => frame.t === lead.leadInMs);
+    assert.equal(junction.length, 1, '过渡段末帧与 clip 首帧不重复');
+    assert.equal(junction[0].targets.a, 1);
+
+    // 只有过渡段受面板限速约束，clip 段保持动画原速
+    for (let index = 1; index < lead.frames.length; index += 1) {
+        if (lead.frames[index].t > lead.leadInMs) break;
+        const dt = (lead.frames[index].t - lead.frames[index - 1].t) / 1000;
+        if (dt <= 0) continue;
+        const speed = Math.abs(lead.frames[index].targets.a - lead.frames[index - 1].targets.a) / dt;
+        assert.ok(speed <= 0.5 * 1.05, `过渡段峰值 ${speed} 超出 0.5`);
+    }
+});
+
+test('prependLeadIn skips the ramp when the pose already matches', () => {
+    const frames = [{ t: 0, targets: { a: 1 } }, { t: 200, targets: { a: 1.2 } }];
+    const lead = prependLeadIn({ frames, from: { a: 1.0005 }, maxSpeedRadS: 0.5 });
+    assert.equal(lead.leadInMs, 0);
+    assert.equal(lead.frames.length, 2);
+    assert.equal(lead.frames[0].t, 0);
+    assert.deepEqual(lead.frames[0].targets, { a: 1 });
+});
+
+test('planClipHands follows the clip timeline and reports motion', () => {
+    const hands = {
+        vendor: 'inspire',
+        sides: {
+            left: { jointMap: ['left_index_mcp_joint'] },
+            right: { jointMap: ['right_index_mcp_joint'] }
+        }
+    };
+    const ranges = {
+        left_index_mcp_joint: { lower: 0, upper: 1 },
+        right_index_mcp_joint: { lower: 0, upper: 1 }
+    };
+    const clip = {
+        durationMs: 1000,
+        tracks: [
+            linearTrack('left_index_mcp_joint', 0, 1),
+            linearTrack('right_index_mcp_joint', 0.5, 0.5)
+        ]
+    };
+    const plan = planClipHands({
+        clip,
+        hands,
+        ranges,
+        startBySide: { left: [0], right: [0.5] },
+        startMs: 0,
+        endMs: 1000,
+        hz: 20,
+        leadInMs: 200
+    });
+
+    assert.equal(plan.matched, 2);
+    assert.equal(plan.hasMotion, true);
+    assert.equal(plan.sides.left[0].t, 0);
+    assert.equal(plan.sides.left.at(-1).t, 1200);
+    assert.ok(Math.abs(plan.sides.left.at(-1).values[0] - 1) < 1e-6);
+    assert.ok(plan.sides.right.every(frame => Math.abs(frame.values[0] - 0.5) < 1e-6));
+});
+
+test('planClipHands stays still for clips without finger keys', () => {
+    const hands = { sides: { left: { jointMap: ['left_index_mcp_joint'] } } };
+    const ranges = { left_index_mcp_joint: { lower: 0, upper: 1 } };
+    const clip = { durationMs: 500, tracks: [linearTrack('shoulder_pitch_l_joint', 0, 0.3, 500)] };
+    const plan = planClipHands({
+        clip,
+        hands,
+        ranges,
+        startBySide: { left: [0.42] },
+        startMs: 0,
+        endMs: 500
+    });
+    assert.equal(plan.hasMotion, false);
+    assert.ok(plan.sides.left.every(frame => Math.abs(frame.values[0] - 0.42) < 1e-6));
 });

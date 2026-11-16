@@ -146,6 +146,8 @@ class FakeDexRobot:
         if elapsed >= frames[-1]['t']:
             if traj['loop']:
                 traj['start'] = time.monotonic()
+                traj['idx'] = 0
+                self._targets.update(frames[0]['targets'])
                 return
             self._targets.update(frames[-1]['targets'])
             self._traj_done = traj['id']
