@@ -4,6 +4,11 @@ node_modules/
 # Build output
 dist/
 build/
+dist-installer/
+
+# Python
+__pycache__/
+*.pyc
 
 # Logs
 npm-debug.log*
@@ -38,3 +43,5 @@ __pycache__/
 
 # IDE / agent 项目数据（本地计划与缓存）
 .codebuddy/
+
+dist-manager/

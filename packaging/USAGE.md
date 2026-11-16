@@ -26,17 +26,22 @@ sudo apt install ./robot-editor_<version>_<arch>.deb
 ```bash
 sudo robot-editor config nano        # 编辑 ROS_SETUP / 端口 / 手型 / spd / cur
 robot-editor check                   # 自检：配置/依赖/ROS 环境、端口
-sudo systemctl enable --now robot-editor   # 开机自启 + 立即启动（同时拉起前端 nginx）
 robot-editor status                  # 桥接 + nginx 状态、端口、连接地址
 robot-editor logs -f                 # 实时日志（journald）
-sudo robot-editor restart            # 改完配置重启桥接
+sudo robot-editor restart            # 改完配置重启（桥接 + 前端）
 ```
 
-`robot-editor.service` 按"本项目是一个整体"设计：
+桥接与前端始终一起管理，命令等价于 `systemctl <动词> robot-editor nginx`：
 
-- `start robot-editor` → 同时启动**桥接 + 前端 nginx**（`Wants=nginx.service`）；
-- `stop robot-editor` → **同时停止桥接与前端**（`PropagatesStopTo=nginx.service`，systemd ≥ 249）；
-- `restart robot-editor` 只重启桥接，nginx 不动（前端是静态文件，无需重启）。
+```bash
+sudo systemctl start   robot-editor nginx   # 启动桥接 + 前端
+sudo systemctl stop    robot-editor nginx   # 停止桥接 + 前端
+sudo systemctl enable  robot-editor nginx   # 开机自启
+sudo systemctl disable robot-editor nginx   # 取消开机自启
+```
+
+`/usr/bin/robot-editor` 的 `start` / `stop` / `restart` 已经内置了 `nginx`，不必再手动带；
+`robot-editor.service` 还保留 `PropagatesStopTo=nginx.service` 作为兜底（直接 `systemctl stop robot-editor` 时前端也会停）。
 
 关键配置项：
 
@@ -78,8 +83,8 @@ sudo dpkg -r robot-editor     # 卸载，保留 /etc 配置
 sudo dpkg -P robot-editor     # 彻底清除（含 /opt 与 /var/www）
 ```
 
-## 与网页「固件一键部署」的关系
+## 与远程安装（弹窗 / 脚本）的关系
 
-- `.deb`：机器人本体一次性安装，带 systemd 服务与开机自启（推荐）；
-- 网页「固件一键部署」：从操作站远程推送（装到 `~/.robot-motion-bridge/<固件ID>/`，`run.sh` 拉起，无系统服务）；
-- 两者跑同一份 `bridge/dex` 代码，**不要同时运行**（抢同一组端口）。
+- 直接装：`sudo apt install ./robot-editor_<version>_<arch>.deb`，带 systemd 服务与开机自启；
+- 远程装：`manager/robot_manager.py`（GUI）或 `scripts/install-remote.sh`（命令），按固件型号匹配 `Release/` 下的同一个安装包，scp 到机器人后 `apt` 安装，可选 `systemctl enable`，装完点「启动」；
+- 两条路径装的是同一个包、同一个 systemd 单元：`dpkg` 按版本升级而不是并存，端口始终只有一组。

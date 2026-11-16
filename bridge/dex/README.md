@@ -117,8 +117,8 @@ SDK 关节与 URDF 命名不同，映射表见 [`joint_map.py`](joint_map.py)：
 三个端口复用同一套 JSON 协议，`welcome.channel` 标出当前通道，`welcome` 同时携带
 `wsPort/statusPort/cameraPort/beaconPort`，便于前端直接据此建立三条连接。
 
-也可由操作站网页端一键部署：`bridge/station.js` 的"固件一键部署"会把本目录推到
-`~/.robot-motion-bridge/tienkung-dex/`，生成带 ROS `source` 顺序的 `run.sh` 并拉起。
+也可远程安装：`manager/robot_manager.py` 或 `scripts/install-remote.sh` 按固件型号匹配 `Release/robot-editor_*.deb`
+（本目录代码已打进 `/opt/robot-editor/dex/`），scp 到机器人后 `apt` 安装，再按需 `systemctl enable/start robot-editor`。
 
 ## 协议扩展
 

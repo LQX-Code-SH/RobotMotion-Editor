@@ -22,7 +22,6 @@ import { MobileLayout } from './ui/MobileLayout.js';
 import { ViewGizmo } from './ui/ViewGizmo.js';
 import { RobotConnectionUI } from './robot/RobotConnectionUI.js';
 import { RobotGhost } from './robot/RobotGhost.js';
-import { RobotDeployUI } from './robot/RobotDeployUI.js';
 import { RobotCatalogUI } from './robot/RobotCatalogUI.js';
 import { isVisualizationObject } from './utils/JointDragControls.js';
 import { JointQuickSlider } from './ui/JointQuickSlider.js';
@@ -239,16 +238,6 @@ class App {
             this.animationWorkspace.setPlayToRobotHandler(
                 (clip) => this.robotConnectionUI.playClip(clip)
             );
-
-            // One-click firmware deployment (SSH via station, browser never holds SSH)
-            this.robotDeployUI = new RobotDeployUI({
-                connectionUI: this.robotConnectionUI
-            });
-            this.robotDeployUI.init();
-            window.robotDeployUI = this.robotDeployUI;
-
-            // 部署面板的端口默认值跟随当前连接的桥接实际端口
-            this.robotConnectionUI.onDeviceChange = (device) => this.robotDeployUI.syncFromDevice(device);
 
             // Built-in robot model catalog (top-left selector)
             this.robotCatalogUI = new RobotCatalogUI({ fileHandler: this.fileHandler });

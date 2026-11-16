@@ -19,12 +19,18 @@ if [ -d "$WEB_ROOT" ]; then
     chown -R www-data:www-data "$WEB_ROOT" 2>/dev/null || true
 fi
 if nginx -t >/dev/null 2>&1; then
-    # 只启动、不单独 enable：本项目按整体管理，开机自启统一由
-    # `systemctl enable robot-editor` 连带拉 frontend（Wants=nginx.service）。
+    # 前端 3000 由 nginx 提供。这里显式 enable + start：
+    # robot-editor 停止时 PropagatesStopTo 会连带停 nginx，只靠 Wants 不保证被拉起。
     if systemctl is-active nginx >/dev/null 2>&1; then
         systemctl reload nginx >/dev/null 2>&1 || true
-    else
-        systemctl start nginx >/dev/null 2>&1 || true
+    elif ! systemctl start nginx >/dev/null 2>&1; then
+        echo "robot-editor: 警告：nginx 启动失败，前端 3000 不可用" >&2
+        echo "             排查：sudo nginx -t / sudo journalctl -u nginx -n 40" >&2
+    fi
+    systemctl enable nginx >/dev/null 2>&1 || true
+
+    if ! ss -ltn 2>/dev/null | grep -q ':3000 '; then
+        echo "robot-editor: 警告：3000 端口未监听，网页入口暂不可用" >&2
     fi
 else
     echo "robot-editor: 警告：nginx 配置校验失败，请执行 sudo nginx -t 查看原因" >&2
