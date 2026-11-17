@@ -21,7 +21,7 @@
 - **真机播放**：在动画编辑器工具栏点“真机播放”，把当前 clip 采样为关节轨迹下发执行——**只播一遍、不循环**，首帧从真机当前位姿平滑过渡（面板限速），手型匹配时手指沿同一时间轴走独立通道；与「真机同步控制」互斥，播放期间自动禁用。真机控制面板提供“发送当前位姿”“真机回零”、停止与一键急停
 - **设备管理**：按"设备地址"一键连接（直连机器人或经操作站网关），状态、遥测与动作下发集中在一个面板
 - **远程运维管理器**：独立的「robot-editor 管理器」（Tkinter 窗口，含随包 `.deb`）填 IP / SSH 端口 / 用户名 / 密码 / 固件型号（按型号匹配 `Release/robot-editor_*.deb`），即可安装、启停、重启、看日志、改开机自启、卸载；「更多」里可切换安装包目录与四路端口；无 GUI 场景用 `scripts/install-remote.sh`
-- **一键安装包**：`scripts/build-deb.sh` 产出自包含 `.deb`（桥接 + nginx 站点 + 完整前端产物），机器人本体一条 `apt install` 装完即可用，带 systemd 服务；安装包由 Git LFS 托管在 `Release/`
+- **一键安装包**：`scripts/build-deb.sh` 产出自包含 `.deb`（桥接 + nginx 站点 + 完整前端产物），机器人本体一条 `apt install` 装完即可用，带 systemd 服务；安装包随 [GitHub Release](https://github.com/LQX-Code-SH/RobotMotion-Editor/releases/latest) 附件分发（不入仓库）
 - **模型支持**：URDF / Xacro / MJCF（含并联机构闭链联动）/ USD（部分支持）；内置优必选 Walker S2 / C1 / TienKung Pro / TienKung Dex 四款机型资源
 - **机型切换**：页面左上角机型列表按“机器人型号-末端执行器”标识（如 `walker-tienkung-dex-inspire`），切换即预览对应 URDF
 - **其他能力**：惯量/质心/坐标系可视化、距离测量、内置 CodeMirror 编辑器、MuJoCo 物理仿真
@@ -37,7 +37,7 @@
 | `manager/` | **robot-editor 管理器**（Tkinter GUI：安装 / 启停 / 重启 / 日志 / 自启 / 卸载） |
 | `packaging/` | `.deb` 打包素材（systemd 单元、postinst、nginx 站点、管理命令） |
 | `scripts/` | 构建与部署脚本（`build-deb.sh` / `build-manager.sh` / `install-remote.sh` / `deploy-web.sh`） |
-| `Release/` | 自包含 `.deb`（Git LFS 托管） |
+| `Release/` | 本地构建产物（`*.deb` 不入库，随 [GitHub Release](https://github.com/LQX-Code-SH/RobotMotion-Editor/releases) 附件分发） |
 | `robot/` | 机型资源（URDF / STL / 贴图，约 400 MB） |
 | `tests/` | `node --test` 单元测试 |
 | `docs/` | 部署形态与演进路线 |
@@ -52,7 +52,12 @@ pnpm run dev                        # http://localhost:3000
 # 2) 生产产物 + 打包机器人本体安装包
 pnpm run build                      # 输出 dist/
 scripts/build-deb.sh                # → Release/robot-editor_<version>_<arch>.deb
-sudo apt install ./Release/robot-editor_1.5.0_arm64.deb   # 机器人上执行
+
+# 2a) 机器人本体安装：优先用官方发布包（或自建后拷到机器人）
+gh release download v1.5.1 -p '*.deb' -D Release/
+# 无 gh 时直接下载：
+# https://github.com/LQX-Code-SH/RobotMotion-Editor/releases/download/v1.5.1/robot-editor_1.5.1_arm64.deb
+sudo apt install ./Release/robot-editor_1.5.1_arm64.deb   # 机器人上执行
 
 # 2b) 管理器：打包分发，或直接源码运行
 scripts/build-manager.sh            # → dist-manager/robot-manager_<version>_<arch>/（增量，秒级）
