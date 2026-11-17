@@ -60,7 +60,8 @@ if [ "$WITH_DIST" = "1" ]; then
     fi
     cp -a "$ROOT/dist/." "$STAGE/var/www/robot-editor/"
     # 归属由 dpkg-deb --root-owner-group 统一改成 root:root
-    COMPRESS="-Zzstd -z10"
+    # dpkg 1.21.1 的 zstd 不接受 -z<level>（会报“无效的压缩等级”），用其默认级别
+    COMPRESS="-Zzstd"
 fi
 
 # ---- DEBIAN 元数据 ----

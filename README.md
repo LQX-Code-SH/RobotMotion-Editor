@@ -20,11 +20,29 @@
 - **动作预览**：编辑器内实时回放；连接真机后可用「视口同步」以半透明幽灵层实时显示真机实际姿态（主模型保持为可编辑目标），「读取真机姿态」一次性把真机当前角度拉进视口；反向的「真机同步控制」把视口里的关节拖动 / 末端 IK / 键盘 jog 以约 12.5Hz 节流下发到真机，两者可同时开启
 - **真机播放**：在动画编辑器工具栏点“真机播放”，把当前 clip 采样为关节轨迹下发执行——**只播一遍、不循环**，首帧从真机当前位姿平滑过渡（面板限速），手型匹配时手指沿同一时间轴走独立通道；与「真机同步控制」互斥，播放期间自动禁用。真机控制面板提供“发送当前位姿”“真机回零”、停止与一键急停
 - **设备管理**：按"设备地址"一键连接（直连机器人或经操作站网关），状态、遥测与动作下发集中在一个面板
-- **一键部署**：网页端填机器人 IP / 用户名 / 密码 / 固件类型，经操作站 SSH/SFTP 上传桥接并拉起；端口默认取「当前连接的桥接实际端口」，信标按 UDP 探测，日志实时回传
+- **远程运维管理器**：独立的「robot-editor 管理器」（Tkinter 窗口，含随包 `.deb`）填 IP / SSH 端口 / 用户名 / 密码 / 固件型号（按型号匹配 `Release/robot-editor_*.deb`），即可安装、启停、重启、看日志、改开机自启、卸载；「更多」里可切换安装包目录与四路端口；无 GUI 场景用 `scripts/install-remote.sh`
 - **一键安装包**：`scripts/build-deb.sh` 产出自包含 `.deb`（桥接 + nginx 站点 + 完整前端产物），机器人本体一条 `apt install` 装完即可用，带 systemd 服务；安装包由 Git LFS 托管在 `Release/`
 - **模型支持**：URDF / Xacro / MJCF（含并联机构闭链联动）/ USD（部分支持）；内置优必选 Walker S2 / C1 / TienKung Pro / TienKung Dex 四款机型资源
 - **机型切换**：页面左上角机型列表按“机器人型号-末端执行器”标识（如 `walker-tienkung-dex-inspire`），切换即预览对应 URDF
 - **其他能力**：惯量/质心/坐标系可视化、距离测量、内置 CodeMirror 编辑器、MuJoCo 物理仿真
+
+## 目录结构
+
+| 路径 | 内容 |
+|---|---|
+| `src/`、`index.html` | 前端（Three.js 视口、动画编辑器、真机控制面板） |
+| `bridge/` | 机器人端桥接 `robot-server.js` 与操作站网关 `station.js` |
+| `bridge/dex/` | 天工 DEX 的 ROS 2 桥接（`dex_bridge.py`） |
+| `bridge/deploy/` | 型号清单与安装编排（`manifest.json` / `deployer.js` / `cli.js`） |
+| `manager/` | **robot-editor 管理器**（Tkinter GUI：安装 / 启停 / 重启 / 日志 / 自启 / 卸载） |
+| `packaging/` | `.deb` 打包素材（systemd 单元、postinst、nginx 站点、管理命令） |
+| `scripts/` | 构建与部署脚本（`build-deb.sh` / `build-manager.sh` / `install-remote.sh` / `deploy-web.sh`） |
+| `Release/` | 自包含 `.deb`（Git LFS 托管） |
+| `robot/` | 机型资源（URDF / STL / 贴图，约 400 MB） |
+| `tests/` | `node --test` 单元测试 |
+| `docs/` | 部署形态与演进路线 |
+
+## 快速开始
 
 ```bash
 # 1) 开发前端（dev 与 preview 统一 3000）
@@ -36,7 +54,12 @@ pnpm run build                      # 输出 dist/
 scripts/build-deb.sh                # → Release/robot-editor_<version>_<arch>.deb
 sudo apt install ./Release/robot-editor_1.5.0_arm64.deb   # 机器人上执行
 
-# 3) 操作站网关（部署 API + 设备发现，跑在浏览器那台电脑）
+# 2b) 管理器：打包分发，或直接源码运行
+scripts/build-manager.sh            # → dist-manager/robot-manager_<version>_<arch>/（增量，秒级）
+scripts/build-manager.sh --tar      # 需要拷到别的电脑时再加 tar（deb 用硬链接，不重拷）
+python3 manager/robot_manager.py    # 不打包也能直接开窗口（需 python3-tk + paramiko）
+
+# 3) 操作站网关（设备发现 + WS 代理，跑在浏览器那台电脑）
 cd bridge && npm install
 npm run station -- --host 0.0.0.0   # 仅本机访问可去掉 --host
 
@@ -49,11 +72,14 @@ cd bridge/dex && python3 -u dex_bridge.py --hand inspire --spd 1.5 --cur 40 --ma
 | 端口 | 用途 |
 |---|---|
 | 3000 | 前端（dev / preview / nginx 统一） |
-| 8090 | 操作站 station（部署 API、WS 代理、设备发现） |
+| 8090 | 操作站 station（设备发现、WebSocket 代理） |
 | 8081 / 8082 / 8083 | 桥接控制 / 状态 / 相机 |
 | 45678/UDP | 桥接信标（设备发现） |
 
-安装包与桥接用法见 [`packaging/USAGE.md`](packaging/USAGE.md)，协议与部署见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)，部署形态与演进路线（本地安装为主，边缘网关 + TLS 为备选）见 [`docs/deployment.md`](docs/deployment.md)。
+同一台机器人装好服务后，浏览器直接访问 `http://<机器人IP>:3000` 即可使用，不需要再开 station；
+station 只在“浏览器不直连机器人、需要代为发现设备/代理连接”时才需要。
+
+安装包与桥接用法见 [`packaging/USAGE.md`](packaging/USAGE.md)，协议与远程运维见 [`bridge/README.md`](bridge/README.md)，机型资源见 [`robot/README.md`](robot/README.md)，部署形态与演进路线（本地安装为主，边缘网关 + TLS 为备选）见 [`docs/deployment.md`](docs/deployment.md)。
 
 ## 规划与进度
 
@@ -64,7 +90,7 @@ cd bridge/dex && python3 -u dex_bridge.py --hand inspire --spd 1.5 --cur 40 --ma
 | 真机桥接服务与设备发现/管理 | ✅ 已完成 |
 | 真机控制面板（连接、使能、轨迹播放、急停、视口同步、读取姿态、键盘 jog） | ✅ 已完成 |
 | 末端笛卡尔空间拖动（IK，含并联主链简化） | ✅ 已完成 |
-| 固件一键部署（SSH/SFTP，端口取当前值 + UDP 信标探测 + 实时日志） | ✅ 已完成 |
+| 远程运维管理器（GUI：安装 / 启停 / 重启 / 日志 / 自启 / 卸载，型号→`.deb` 匹配） | ✅ 已完成 |
 | 自包含 `.deb` 安装包（桥接 + nginx + 前端产物，systemd 托管） | ✅ 已完成 |
 | Walker S2 / C1 / TienKung Pro 机型资源与关节档案 | ✅ 已完成 |
 | **TienKung Dex 真机适配**（桥接服务已完成，待真机联调） | 🔄 **进行中** |

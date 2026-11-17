@@ -1347,62 +1347,6 @@
             color: #16a34a;
         }
 
-        /* 固件一键部署 */
-        .robot-deploy {
-            border: 1px solid var(--border-color, #ccc);
-            border-radius: 4px;
-            padding: 0 8px 8px;
-        }
-
-        .robot-deploy > summary {
-            padding: 8px 0;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            opacity: 0.8;
-            user-select: none;
-        }
-
-        .robot-deploy[open] > summary {
-            border-bottom: 1px solid var(--border-color, #eee);
-            margin-bottom: 8px;
-        }
-
-        .robot-deploy-body {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .robot-deploy-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-        }
-
-        .robot-field {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            min-width: 0;
-        }
-
-        .robot-field > span {
-            font-size: 11px;
-            opacity: 0.7;
-        }
-
-        .robot-field .robot-input {
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .robot-deploy-log {
-            height: 140px;
-            min-height: 140px;
-            max-height: 140px;
-        }
-
         .help-section {
             margin-bottom: 24px;
         }
@@ -4316,76 +4260,6 @@
                     </div>
 
                     <div class="robot-section">
-                        <details id="robot-deploy" class="robot-deploy">
-                            <summary>固件一键部署（SSH）</summary>
-                            <div class="robot-deploy-body">
-                                <div class="robot-deploy-grid">
-                                    <label class="robot-field">
-                                        <span>机器人 IP</span>
-                                        <input type="text" id="robot-deploy-host" class="robot-input" placeholder="192.168.41.2" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>SSH 端口</span>
-                                        <input type="number" id="robot-deploy-ssh-port" class="robot-input" value="22" min="1" max="65535" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>用户名</span>
-                                        <input type="text" id="robot-deploy-username" class="robot-input" placeholder="nvidia" autocomplete="username" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>登录密码</span>
-                                        <input type="password" id="robot-deploy-password" class="robot-input" autocomplete="current-password" />
-                                    </label>
-                                </div>
-
-                                <label class="robot-field">
-                                    <span>设备固件类型</span>
-                                    <select id="robot-deploy-firmware" class="robot-input">
-                                        <option value="">加载中…</option>
-                                    </select>
-                                </label>
-
-                                <label class="robot-field" id="robot-deploy-model-field" style="display: none;">
-                                    <span>机型</span>
-                                    <select id="robot-deploy-model" class="robot-input"></select>
-                                </label>
-
-                                <div class="robot-deploy-grid robot-deploy-ports">
-                                    <label class="robot-field">
-                                        <span>控制端口</span>
-                                        <input type="number" id="robot-deploy-port-control" class="robot-input" value="8081" min="1" max="65535" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>状态端口</span>
-                                        <input type="number" id="robot-deploy-port-status" class="robot-input" value="8082" min="0" max="65535" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>相机端口</span>
-                                        <input type="number" id="robot-deploy-port-camera" class="robot-input" value="8083" min="0" max="65535" />
-                                    </label>
-                                    <label class="robot-field">
-                                        <span>发现端口 (UDP)</span>
-                                        <input type="number" id="robot-deploy-port-beacon" class="robot-input" value="45678" min="1" max="65535" />
-                                    </label>
-                                </div>
-
-                                <div class="robot-row">
-                                    <button id="robot-deploy-preflight-btn" class="robot-btn">预检</button>
-                                    <button id="robot-deploy-install-btn" class="robot-btn primary">一键安装</button>
-                                </div>
-                                <div class="robot-row">
-                                    <button id="robot-deploy-start-btn" class="robot-btn">启动</button>
-                                    <button id="robot-deploy-stop-btn" class="robot-btn">停止</button>
-                                    <button id="robot-deploy-status-btn" class="robot-btn">状态</button>
-                                    <button id="robot-deploy-logs-btn" class="robot-btn">日志</button>
-                                </div>
-
-                                <div id="robot-deploy-log" class="robot-log robot-deploy-log"></div>
-                            </div>
-                        </details>
-                    </div>
-
-                    <div class="robot-section">
                         <label class="robot-label">日志</label>
                         <div id="robot-log" class="robot-log"></div>
                     </div>
@@ -4461,6 +4335,7 @@
         <div class="ee-hud-status" id="ee-hud-status"></div>
         <div class="ee-hud-hint" data-i18n="eeControlHint"></div>
     </div>
+
 
     <script type="module" src="/src/main.js"></script>
 </body>

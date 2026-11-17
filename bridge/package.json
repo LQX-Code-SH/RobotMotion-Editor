@@ -7,7 +7,8 @@
   "scripts": {
     "robot": "node robot-server.js",
     "robot:mock": "node robot-server.js --adapter mock",
-    "station": "node station.js"
+    "station": "node station.js",
+    "deploy": "node deploy/cli.js"
   },
   "dependencies": {
     "ssh2": "^1.15.0",

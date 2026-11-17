@@ -4,6 +4,11 @@ node_modules/
 # Build output
 dist/
 build/
+dist-installer/
+
+# Python
+__pycache__/
+*.pyc
 
 # Logs
 npm-debug.log*
@@ -42,3 +47,5 @@ __pycache__/
 # 自包含安装包：随 GitHub Release 附件分发，不进仓库
 # 构建 + 发布：PUBLISH=1 scripts/build-deb.sh
 Release/*.deb
+
+dist-manager/

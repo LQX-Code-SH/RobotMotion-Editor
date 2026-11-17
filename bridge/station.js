@@ -4,12 +4,13 @@
  *
  * 运行在操作员电脑上。职责：
  * 1. 代为完成设备发现（浏览器无法发 UDP 广播），并把浏览器的 WebSocket 连接代理到目标机器人；
- * 2. 提供固件一键部署 API：浏览器提交机器人 IP/用户名/密码，由本进程通过 SSH/SFTP 推送
- *    桥接固件并拉起服务（浏览器本身不具备 SSH 能力，也不应持有凭据）。
+ * 2. 提供同网段设备列表（/api/devices），供网页端选择后连接。
  *
  *   浏览器  --ws-->    station(:8090)  --ws-->  机器人桥接(:8081 控制 / :8082 状态 / :8083 相机)
  *   浏览器  --http-->  station /api/devices     获取同网段设备列表
- *   浏览器  --http-->  station /api/deploy/*    一键部署与启停
+ *
+ * 机器人服务的安装/启停不经过本进程：用 manager/robot_manager.py（GUI）
+ * 或 scripts/install-remote.sh（命令行），两者直接 SSH 到机器人。
  *
  * 设备发现双通道：
  *   1. 监听机器人端桥接的 UDP 信标广播（:45678）；
@@ -17,14 +18,13 @@
  *
  * 用法：node station.js [--port 8090] [--beacon-port 45678] [--host 127.0.0.1]
  *
- * 安全提示：部署接口会接收 SSH 凭据，因此默认只监听回环地址。
- * 若浏览器与 station 不在同一台机器，显式加 --host 0.0.0.0 并确保网络可信。
+ * 安全提示：station 默认只监听回环地址；浏览器与 station 不同机时，
+ * 显式加 --host 0.0.0.0 并确保网络可信。
  */
 import { createSocket } from 'dgram';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import os from 'os';
-import { listFirmwares, preflight, deploy, action } from './deploy/deployer.js';
 
 const args = process.argv.slice(2);
 function argOf(name, def) {
@@ -114,48 +114,8 @@ function sendJson(res, statusCode, payload) {
     res.end(JSON.stringify(payload));
 }
 
-function readJsonBody(req, limit = 1024 * 1024) {
-    return new Promise((resolve, reject) => {
-        let size = 0;
-        const chunks = [];
-        req.on('data', (chunk) => {
-            size += chunk.length;
-            if (size > limit) {
-                const err = new Error('请求体过大');
-                err.statusCode = 413;
-                reject(err);
-                req.destroy();
-                return;
-            }
-            chunks.push(chunk);
-        });
-        req.on('end', () => {
-            if (!chunks.length) {
-                resolve({});
-                return;
-            }
-            try {
-                resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8')));
-            } catch {
-                const err = new Error('请求体不是合法 JSON');
-                err.statusCode = 400;
-                reject(err);
-            }
-        });
-        req.on('error', reject);
-    });
-}
-
-function errorMessage(err) {
-    // 只回传业务错误，不泄露凭据（本模块从不把密码放进消息）
-    return err?.message || String(err);
-}
-
-// 同一台机器人同时只允许一个部署任务，避免端口/进程相互覆盖
-const activeDeploys = new Set();
-
 // ---------- HTTP API ----------
-const httpServer = createServer(async (req, res) => {
+const httpServer = createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -169,7 +129,7 @@ const httpServer = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
-        sendJson(res, 200, { ok: true, devices: devices.size, activeDeploys: activeDeploys.size });
+        sendJson(res, 200, { ok: true, devices: devices.size });
         return;
     }
 
@@ -197,78 +157,6 @@ const httpServer = createServer(async (req, res) => {
                 directUrl: `ws://${dev.ips?.[0] || dev.address}:${dev.wsPort}`
             }));
         sendJson(res, 200, { ok: true, devices: list });
-        return;
-    }
-
-    if (req.method === 'GET' && url.pathname === '/api/deploy/firmwares') {
-        sendJson(res, 200, { ok: true, firmwares: listFirmwares() });
-        return;
-    }
-
-    if (req.method === 'POST' && url.pathname === '/api/deploy/preflight') {
-        try {
-            const body = await readJsonBody(req);
-            const result = await preflight(body);
-            sendJson(res, 200, { ok: result.ok, ...result });
-        } catch (err) {
-            sendJson(res, err.statusCode || 500, { ok: false, error: errorMessage(err) });
-        }
-        return;
-    }
-
-    if (req.method === 'POST' && url.pathname === '/api/deploy/action') {
-        try {
-            const body = await readJsonBody(req);
-            const result = await action(body);
-            sendJson(res, 200, { ok: true, ...result });
-        } catch (err) {
-            sendJson(res, err.statusCode || 500, { ok: false, error: errorMessage(err) });
-        }
-        return;
-    }
-
-    if (req.method === 'POST' && url.pathname === '/api/deploy/run') {
-        let body;
-        try {
-            body = await readJsonBody(req);
-        } catch (err) {
-            sendJson(res, err.statusCode || 400, { ok: false, error: errorMessage(err) });
-            return;
-        }
-
-        const key = `${body.host || ''}`;
-        if (activeDeploys.has(key)) {
-            sendJson(res, 409, { ok: false, error: `对 ${key} 的部署正在进行中` });
-            return;
-        }
-        activeDeploys.add(key);
-
-        res.writeHead(200, {
-            'Content-Type': 'application/x-ndjson; charset=utf-8',
-            'Cache-Control': 'no-cache, no-transform',
-            'X-Accel-Buffering': 'no'
-        });
-
-        let closed = false;
-        const emit = (event) => {
-            if (closed) return;
-            try {
-                res.write(`${JSON.stringify(event)}\n`);
-            } catch {
-                closed = true;
-            }
-        };
-
-        res.on('close', () => { closed = true; });
-
-        try {
-            await deploy(body, emit);
-        } catch (err) {
-            emit({ type: 'error', message: errorMessage(err) });
-        } finally {
-            activeDeploys.delete(key);
-            try { res.end(); } catch { /* ignore */ }
-        }
         return;
     }
 
@@ -324,9 +212,8 @@ wss.on('connection', (clientWs, req) => {
 httpServer.listen(HTTP_PORT, HOST, () => {
     console.log(`[station] HTTP  API  http://${HOST}:${HTTP_PORT}/api/devices`);
     console.log(`[station] WS proxy   ws://${HOST}:${HTTP_PORT}/ws?device=<deviceId>`);
-    console.log(`[station] deploy API ${HOST}:${HTTP_PORT}/api/deploy/{firmwares,preflight,run,action}`);
     if (HOST === '0.0.0.0' || HOST === '::') {
-        console.warn('[station] 注意：部署接口已暴露到所有网卡，会接收 SSH 凭据，请确认网络可信');
+        console.warn('[station] 注意：设备列表与 WS 代理已暴露到所有网卡，请确认网络可信');
     }
 });
 

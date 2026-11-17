@@ -7,7 +7,6 @@ RobotMotion-Editor 的真机接入层。部署后网页端即可搜索同网段�
 ```
 浏览器 (RobotMotion-Editor)
    │  HTTP GET  /api/devices        设备发现与列表
-   │  HTTP POST /api/deploy/*       一键部署（浏览器不接触 SSH 凭据）
    │  WebSocket /ws?device=<id>     控制指令 / 遥测（station 代理转发）
    ▼
 station.js (操作站网关, :8090)
@@ -23,7 +22,7 @@ station.js (操作站网关, :8090)
 ```
 
 - **robot-server.js**：部署在机器人板载计算机上。周期广播 UDP 信标、响应探测、接受 WebSocket 控制指令，并把指令路由给机型适配器。
-- **station.js**：运行在操作员电脑。浏览器无法直接发 UDP，因此由 station 代为发现设备（信标 + 广播探测），并提供 WebSocket 反向代理；同时提供固件一键部署 API（SSH/SFTP）。
+- **station.js**：运行在操作员电脑。浏览器无法直接发 UDP，因此由 station 代为发现设备（信标 + 广播探测），并提供 WebSocket 反向代理；同时提供设备列表 API。
 - **deploy/**：固件清单与部署编排。`manifest.json` 定义固件类型、文件清单、默认端口；`deployer.js` 负责预检、上传、依赖安装、启停与校验。
 - **adapters/**：机型适配层。`MockAdapter` 用于无硬件联调；`UbtechAdapter` 为优必选 Walker 系列接入接缝层（注入 SDK 实现）。
 - **dex/**：天工 DEX（TienKung Dex）真机 Python 桥接，直连 ROS 2 话题，支持 31 个身体关节、BrainCo/Inspire 灵巧手与 4 路相机推流，协议与 Node 版一致并扩展了手部/相机消息。详见 [`dex/README.md`](dex/README.md)。
@@ -37,7 +36,7 @@ station.js (操作站网关, :8090)
 | 8083 | WebSocket | 相机通道 | 只读：`camera_list` / `camera_subscribe` / `camera_unsubscribe`（Node 版不监听） |
 | 45678 | UDP | 设备发现 | 信标广播与 `discover` 探测 |
 | 8090 | HTTP/WS | station 网关 | 设备列表、部署 API、WS 代理 |
-| 22 | TCP | SSH | 仅一键部署使用，可自定义 |
+| 22 | TCP | SSH | 管理器 / 脚本安装与运维时使用，可自定义 |
 
 控制通道保持向后兼容：单连 8081 仍可收到全部消息。分端口的意义在于把高频遥测与相机流从控制连接上剥离。
 
@@ -63,57 +62,76 @@ npm run robot               # 默认 walker-s2 + mock 适配器
 
 面板只保留"连接/断开"：连接成功后会自动下发一次 `enable`（失败仅在日志告警，不阻断连接），不再提供手动使能/失能按钮。
 
-> station 默认只监听 `127.0.0.1`：部署接口会接收 SSH 凭据，不应默认暴露到局域网。
+> station 默认只监听 `127.0.0.1`：仅供本机浏览器访问设备列表与 WS 代理。
 > 若浏览器与 station 不同机，加 `npm run station -- --host 0.0.0.0` 并确认网络可信。
->
-> 机器人端桥接可以不手动启动：网页端"固件一键部署（SSH）"填 IP / 用户名 / 密码 / 固件类型，点"一键安装"即可完成上传、装依赖、拉起与端口校验。
 
-## 一键部署（网页端）
+## 远程运维（管理器 / 脚本）
 
-前端在"真机控制"面板的"固件一键部署（SSH）"区块提交表单，station 通过 SSH/SFTP 完成部署：
+机器人端服务由自包含 `.deb` 提供，两个入口等价，都**不经 station**、直接 SSH 到机器人：
+
+| 入口 | 场景 |
+|---|---|
+| `manager/robot_manager.py`（GUI，随包含 `.deb`） | 日常运维：安装 / 启停 / 重启 / 日志 / 开机自启 / 卸载 |
+| `scripts/install-remote.sh`（命令行） | 无图形界面、批量或自动化 |
+
+安装流程（GUI 用 Python 实现，脚本复用 `deploy/deployer.js`，步骤一致）：
 
 | 步骤 | 动作 |
 |---|---|
-| 1 | SSH 连接（密码或私钥，12s 超时） |
-| 2 | 预检：运行时、OS、磁盘、端口占用、已有实例、依赖、ROS 环境 |
-| 3 | 上传固件文件到 `~/.robot-motion-bridge/<firmware-id>/` |
-| 4 | 生成 `run.sh`（含 ROS `setup.bash` 链接顺序、端口参数、pid 文件） |
-| 5 | 安装依赖（`websockets` / `ws`），失败时给出可执行提示 |
-| 6 | 停止旧实例 → `nohup setsid ./run.sh` 拉起 |
-| 7 | 校验 pid 存活 + 逐端口 TCP 连通，回传日志尾部 |
+| 1 | 按固件型号匹配 `Release/robot-editor_*.deb`（多版本取最高版本） |
+| 2 | SSH 连接（密码或私钥，12s 超时） |
+| 3 | scp 上传安装包到 `/tmp/`（带进度） |
+| 4 | `apt-get install -y` 安装（自动补 nginx / python3-websockets 依赖，保留已有 bridge.conf） |
+| 5 | 写入 `/etc/robot-editor/bridge.conf`（机型 + 四路端口 + 型号参数） |
+| 6 | 可选 `systemctl enable`；若服务原本在运行则重启一次应用新代码 |
+| 7 | 校验包版本、桥接程序与前端 3000，回传 journald 尾部 |
 
-API：
+安装**默认不启动**桥接（避免装完上电就动）；装完点「启动」或在脚本里 `start`。
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/deploy/firmwares` | 固件类型、默认端口、支持机型 |
-| POST | `/api/deploy/preflight` | 只读预检，返回 `checks[]` |
-| POST | `/api/deploy/run` | 执行部署，NDJSON 流式返回进度 |
-| POST | `/api/deploy/action` | `start` / `stop` / `restart` / `status` / `logs` |
+启动 / 停止 / 重启 / 开机自启都成对作用于桥接与前端 nginx：
 
-请求体（`/run`、`/preflight`、`/action`）：
+| 操作 | 实际命令 |
+|---|---|
+| 启动 | `systemctl start robot-editor nginx` |
+| 停止 | `systemctl stop robot-editor nginx` |
+| 重启 | `systemctl restart robot-editor nginx` |
+| 开机自启 | `systemctl enable robot-editor nginx` |
+| 取消自启 | `systemctl disable robot-editor nginx` |
 
-```json
-{
-  "host": "192.168.41.2",
-  "port": 22,
-  "username": "nvidia",
-  "password": "******",
-  "firmwareId": "tienkung-dex",
-  "model": "walker-tienkung-dex",
-  "ports": { "control": 8081, "status": 8082, "camera": 8083, "beacon": 45678 },
-  "action": "status"
-}
+安装时会先确保前端 3000 可用（`systemctl enable --now nginx`），否则前端打开是空白/拒绝连接。
+
+管理器：
+
+```bash
+scripts/build-manager.sh            # 增量更新 dist-manager/（deb 用硬链接，秒级）
+dist-manager/robot-manager_<ver>_<arch>/run-manager.sh
+```
+
+脚本：
+
+```bash
+scripts/install-remote.sh list                                    # 列型号 → 匹配到的安装包
+scripts/install-remote.sh install --host 192.168.41.2 --user nvidia --enable
+scripts/install-remote.sh status  --host 192.168.41.2 --user nvidia
+scripts/install-remote.sh start|stop|restart|logs --host <IP> --user <用户名>
+```
+
+密码交互输入（不回显）；自动化时预设 `ROBOT_SSH_PASSWORD`。型号 `--firmware` 默认 `tienkung_dex`。
+
+卸载（管理器「卸载…」或脚本）：
+
+```bash
+scripts/install-remote.sh uninstall --host <IP> --user <用户名>          # dpkg -r，保留配置
+scripts/install-remote.sh uninstall --host <IP> --user <用户名> --purge  # dpkg -P，彻底删除
 ```
 
 安全约定：
 
-- 密码只在 station 进程内存中用于一次 SSH 握手，不写日志、不回传、不落盘；前端也不写 localStorage；
-- 所有端口与用户名经服务端校验，远端命令参数走白名单 + shell 引号转义；
-- 同一台机器人同时只允许一个部署任务；
-- 部署接口无鉴权，因此 station 默认只监听回环地址。
+- 密码只在管理进程内存中用于一次 SSH 握手；远端非 root 时同一份密码经 `sudo -S` 的 stdin 提权，不写进命令行、不写日志、不回传、不落盘；GUI 也不写本地存储；
+- 所有端口、型号参数与用户名经校验，远端命令参数走白名单 + shell 引号转义；写入 `bridge.conf` 的键名与值都有正则白名单；
+- 同一台机器人同时只允许一个安装任务（脚本侧实际执行时间很短，管理器里按钮会自动禁用）。
 
-固件清单见 [`deploy/manifest.json`](deploy/manifest.json)，新增机型只需在此追加条目。
+固件型号清单见 [`deploy/manifest.json`](deploy/manifest.json)：型号（`tienkung_dex` / `tienkung_pro` / `walker_c1` / `walker_s2`）是参数列表，每个型号用 `package` 指定 `Release/` 下的匹配模式、用 `ports` 覆盖默认端口；当前只有 `tienkung_dex` 已打包，其余型号会被拦下并提示。
 
 ## 机器人端启动参数（robot-server.js）
 

@@ -1,60 +1,55 @@
 {
-  "version": 1,
+  "version": 3,
   "defaults": {
     "ports": { "control": 8081, "status": 8082, "camera": 8083, "beacon": 45678 },
-    "remoteRoot": ".robot-motion-bridge"
+    "releaseDir": "Release",
+    "package": "robot-editor_*_arm64.deb",
+    "service": "robot-editor",
+    "configPath": "/etc/robot-editor/bridge.conf",
+    "installDir": "/opt/robot-editor",
+    "remoteTempDir": "/tmp",
+    "enableOnInstall": false
   },
   "firmwares": [
     {
-      "id": "tienkung-dex",
-      "label": "天工 DEX（ROS 2 / Python）",
-      "description": "真机桥接：ROS 2 话题控制、灵巧手、4 路相机推流",
-      "runtime": "python",
+      "id": "tienkung_dex",
+      "label": "天工 DEX（tienkung_dex）",
+      "description": "ROS 2 桥接 + 灵巧手 + 4 路相机推流；Release 中提供 robot-editor_*.deb",
+      "supported": true,
+      "package": "robot-editor_*_arm64.deb",
+      "service": "robot-editor",
       "model": "walker-tienkung-dex",
-      "supportsCamera": true,
-      "files": [
-        { "from": "dex", "to": "dex" }
-      ],
-      "entry": "dex/dex_bridge.py",
-      "args": { "hand": "brainco" },
-      "rosSetup": [
-        "/opt/ros/jazzy/setup.bash",
-        "/opt/humanoid/install/setup.bash",
-        "$HOME/xos/setup.bash"
-      ],
-      "pythonDeps": ["websockets>=10.0"]
+      "config": { "BRIDGE_HAND": "inspire" }
     },
     {
-      "id": "tienkung-dex-dryrun",
-      "label": "天工 DEX 协议联调（dry-run）",
-      "description": "不连接 ROS，仅验证端口、协议与网页联动",
-      "runtime": "python",
-      "model": "walker-tienkung-dex",
-      "supportsCamera": false,
-      "files": [
-        { "from": "dex", "to": "dex" }
-      ],
-      "entry": "dex/dex_bridge.py",
-      "args": { "hand": "none", "dry-run": true },
-      "pythonDeps": ["websockets>=10.0"]
+      "id": "tienkung_pro",
+      "label": "天工 Pro（tienkung_pro）",
+      "description": "预留型号：当前 Release 只提供 tienkung_dex 安装包",
+      "supported": false,
+      "reason": "当前 Release 仅提供 tienkung_dex 安装包，tienkung_pro 尚未打包",
+      "service": "robot-editor",
+      "model": "walker-tienkung-pro",
+      "config": { "BRIDGE_HAND": "none" }
     },
     {
-      "id": "walker-node",
-      "label": "优必选 Walker（Node 桥接）",
-      "description": "Node 版桥接，适配 Walker S2/C1/TienKung Pro；无相机推流",
-      "runtime": "node",
+      "id": "walker_c1",
+      "label": "Walker C1（walker_c1）",
+      "description": "预留型号：当前 Release 只提供 tienkung_dex 安装包",
+      "supported": false,
+      "reason": "当前 Release 仅提供 tienkung_dex 安装包，walker_c1 尚未打包",
+      "service": "robot-editor",
+      "model": "walker-c1",
+      "config": { "BRIDGE_HAND": "none" }
+    },
+    {
+      "id": "walker_s2",
+      "label": "Walker S2（walker_s2）",
+      "description": "预留型号：当前 Release 只提供 tienkung_dex 安装包",
+      "supported": false,
+      "reason": "当前 Release 仅提供 tienkung_dex 安装包，walker_s2 尚未打包",
+      "service": "robot-editor",
       "model": "walker-s2",
-      "models": ["walker-s2", "walker-c1", "walker-tienkung-pro"],
-      "supportsCamera": false,
-      "files": [
-        { "from": "robot-server.js", "to": "bridge/robot-server.js" },
-        { "from": "adapters", "to": "bridge/adapters" },
-        { "from": "deploy/node-package.json", "to": "bridge/package.json" },
-        { "from": "../robot/{{model}}/profile.json", "to": "robot/{{model}}/profile.json" }
-      ],
-      "entry": "bridge/robot-server.js",
-      "args": { "adapter": "mock" },
-      "nodeDeps": ["ws"]
+      "config": { "BRIDGE_HAND": "none" }
     }
   ]
 }

@@ -142,9 +142,10 @@ cmd_check() {
 case "${1:-}" in
     _exec)   cmd_exec ;;
     run)     cmd_exec ;;
-    start)   need_root start;   systemctl start "$SERVICE" && systemctl --no-pager --lines=0 status "$SERVICE" ;;
-    stop)    need_root stop;    systemctl stop "$SERVICE" ;;
-    restart) need_root restart; systemctl restart "$SERVICE" && sleep 1 && cmd_status ;;
+    # 桥接与前端一起启停：systemctl <动词> robot-editor nginx
+    start)   need_root start;   systemctl start "$SERVICE" nginx && systemctl --no-pager --lines=0 status "$SERVICE" ;;
+    stop)    need_root stop;    systemctl stop "$SERVICE" nginx ;;
+    restart) need_root restart; systemctl restart "$SERVICE" nginx && sleep 1 && cmd_status ;;
     status)  cmd_status ;;
     logs)    shift; journalctl -u "$SERVICE" -n 200 "$@" ;;
     config)
