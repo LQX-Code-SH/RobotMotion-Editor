@@ -443,6 +443,9 @@ class DexBridge:
         self.loop = None
         self.ros_node = None
         self.ros_thread = None
+        self.executor = None
+        self._camera_pending = {}   # ws -> 上一帧是否仍在发送（帧推送背压）
+        self._camera_dropped = {}   # ws -> 因背压丢弃的帧数（诊断用）
 
         self.log = print
         self.robot = None
@@ -533,11 +536,18 @@ class DexBridge:
         self.hands = create_hands(self.ros_node, self.args.hand, self.log)
         self.cameras = CameraManager(self.ros_node, self.log)
 
+        # 相机回调在独立的可重入回调组里（见 dex_camera），这里必须用多线程执行器：
+        # 单线程时一帧 11~35ms 的解码会直接顶掉 50Hz 的 /arm/cmd 定时器。
+        from rclpy.executors import MultiThreadedExecutor
+        self.executor = MultiThreadedExecutor(num_threads=3)
+        self.executor.add_node(self.ros_node)
+
         def spin():
             try:
-                rclpy.spin(self.ros_node)
+                self.executor.spin()
             except Exception as exc:
-                self.log(f'[ros] spin 退出：{exc}')
+                # 走到这里是"服务假死"：WS 还连着，但所有 ROS 回调（遥测/关节/相机）都停了
+                self.log(f'[ros] 严重：ROS 执行器退出，关节/相机回调已停止（需重启服务）：{exc}')
 
         self.ros_thread = threading.Thread(target=spin, daemon=True)
         self.ros_thread.start()
@@ -696,6 +706,8 @@ class DexBridge:
                 self.cameras.unsubscribe_token(token)
             if channel == CHANNEL_CONTROL:
                 self._release_when_no_control_client()
+            self._camera_pending.pop(ws, None)
+            self._camera_dropped.pop(ws, None)
             self.log(f'[ws] 客户端断开（当前 {len(self.clients)}）')
 
     def _release_when_no_control_client(self):
@@ -717,16 +729,29 @@ class DexBridge:
 
         run_coroutine_threadsafe 返回的 future 若没人取异常就会被静默丢弃，
         表现为"相机在收帧但网页端一帧也收不到"，因此这里必须留痕。
+
+        背压：同一连接上一帧还没发完就直接丢弃本帧。预览只关心最新画面，
+        而弱网/浏览器卡顿时若每帧都排一个 task，队列会无限增长（内存与事件循环双爆）。
         """
         if not self.loop or self.loop.is_closed():
             return
+        if self._camera_pending.get(ws):
+            self._camera_dropped[ws] = self._camera_dropped.get(ws, 0) + 1
+            return
+        self._camera_pending[ws] = True
         future = asyncio.run_coroutine_threadsafe(self.send(ws, payload), self.loop)
 
         def _report(done):
+            error = None
             try:
                 error = done.exception()
             except Exception:
-                return
+                error = None
+            # 连接已断开时不再保留状态，避免表无限增长
+            if ws in self.clients:
+                self._camera_pending[ws] = False
+            else:
+                self._camera_pending.pop(ws, None)
             if error is not None:
                 self.log(f'[camera] 帧推送失败：{type(error).__name__}: {error}')
 
@@ -966,6 +991,11 @@ def main():
             bridge.cameras.shutdown()
         if bridge.hands:
             bridge.hands.shutdown()
+        if bridge.executor is not None:
+            try:
+                bridge.executor.shutdown()
+            except Exception:
+                pass
         if bridge.ros_node is not None:
             try:
                 bridge.ros_node.destroy_node()

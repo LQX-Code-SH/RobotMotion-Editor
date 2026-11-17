@@ -280,7 +280,11 @@ export class RobotCameraUI {
     async _probeAll() {
         try {
             await this._probeAllInner();
+        } catch (err) {
+            this.log('warning', `相机可用性探测失败：${err?.message || err}`);
         } finally {
+            // 必须无条件复位：否则任何一次异常都会让后续探测永久停摆（菜单一直"检测中"）
+            this._probing = false;
             this._probePromise = null;
         }
     }
@@ -300,18 +304,23 @@ export class RobotCameraUI {
         for (const id of targets) this.availability.delete(id);
         this._renderMenu();
 
-        for (const id of targets) {
-            this.client.sendCameraCommand('camera_subscribe', id, { fps: 1 });
+        try {
+            // 探针与预览走同一套 camera_subscribe（1fps）/camera_unsubscribe 协议。
+            // 必须串行：客户端按消息类型配对 ack，并发请求会互相覆盖导致假超时。
+            for (const id of targets) {
+                const ack = await this.client.subscribeCamera(id, 1);
+                if (!ack?.accepted) this.availability.set(id, false);
+            }
+            await delay(PROBE_TIMEOUT_MS);
+        } finally {
+            for (const id of targets) {
+                try { await this.client.unsubscribeCamera(id); } catch { /* 断线时忽略 */ }
+            }
         }
-        await delay(PROBE_TIMEOUT_MS);
-        for (const id of targets) {
-            this.client.sendCameraCommand('camera_unsubscribe', id);
-        }
+
         for (const id of targets) {
             if (this.availability.get(id) !== true) this.availability.set(id, false);
         }
-
-        this._probing = false;
         this._renderMenu();
     }
 

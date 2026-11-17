@@ -90,6 +90,9 @@ class CameraManager:
         self._entries = {}        # camera_id -> {sub, transport, topic, viewers, lastFrameAt}
         self._cv2 = None
         self._qos = None
+        # 相机回调放在独立（可重入）回调组：由 MultiThreadedExecutor 与关节定时器并行执行，
+        # 单帧解码/编码再慢也不会推迟 50Hz 的 /arm/cmd。
+        self._group = None
         try:
             import cv2  # noqa: F401
             self._cv2 = cv2
@@ -123,6 +126,12 @@ class CameraManager:
         if entry is None:
             return {'topic': CAMERAS.get(camera_id), 'transport': None}
         return {'topic': entry.get('topic'), 'transport': entry.get('transport')}
+
+    def _callback_group(self):
+        if self._group is None:
+            from rclpy.callback_groups import ReentrantCallbackGroup
+            self._group = ReentrantCallbackGroup()
+        return self._group
 
     def _camera_qos(self):
         if self._qos is None:
@@ -159,7 +168,7 @@ class CameraManager:
             sub = self.node.create_subscription(
                 CompressedImage, compressed_topic,
                 (lambda msg, cid=camera_id: self._on_compressed(cid, msg)),
-                self._camera_qos())
+                self._camera_qos(), callback_group=self._callback_group())
             return sub, 'compressed', compressed_topic
 
         from sensor_msgs.msg import Image
@@ -167,7 +176,7 @@ class CameraManager:
         sub = self.node.create_subscription(
             Image, raw_topic,
             (lambda msg, cid=camera_id: self._on_image(cid, msg)),
-            self._camera_qos())
+            self._camera_qos(), callback_group=self._callback_group())
         return sub, 'raw', raw_topic
 
     def subscribe(self, camera_id, token, fps, callback):
@@ -179,21 +188,37 @@ class CameraManager:
 
         with self._lock:
             entry = self._entries.get(camera_id)
-            if entry is None:
-                try:
-                    sub, transport, topic = self._create_subscription(camera_id)
-                except Exception as exc:
-                    return False, f'订阅失败：{exc}'
-                entry = {
-                    'sub': sub,
-                    'transport': transport,
-                    'topic': topic,
-                    'viewers': {},
-                    'lastFrameAt': 0.0,
-                }
-                self._entries[camera_id] = entry
-                self.log(f'[camera] 订阅 {topic}（{transport}）')
-            entry['viewers'][token] = {
+        if entry is None:
+            # _create_subscription 内部会等图发现（最长 0.6s）。必须在锁外做：
+            # 持锁等待会阻塞相机回调线程，进而拖住同一执行器里的关节定时器。
+            try:
+                sub, transport, topic = self._create_subscription(camera_id)
+            except Exception as exc:
+                return False, f'订阅失败：{exc}'
+            with self._lock:
+                entry = self._entries.get(camera_id)
+                if entry is None:
+                    entry = {
+                        'sub': sub,
+                        'transport': transport,
+                        'topic': topic,
+                        'viewers': {},
+                        'lastFrameAt': 0.0,
+                    }
+                    self._entries[camera_id] = entry
+                    self.log(f'[camera] 订阅 {topic}（{transport}）')
+                else:
+                    # 并发请求抢先建好了：丢弃自己这份，避免同一话题重复订阅
+                    try:
+                        self.node.destroy_subscription(sub)
+                    except Exception:
+                        pass
+
+        with self._lock:
+            current = self._entries.get(camera_id)
+            if current is None:
+                return True, ''
+            current['viewers'][token] = {
                 'cb': callback,
                 'fps': max(1, min(30, int(fps or DEFAULT_FPS))),
                 'last': 0.0,
@@ -247,7 +272,10 @@ class CameraManager:
 
     def _deliver(self, targets, jpeg, width, height, stamp):
         # 协议里 data 是 base64 字符串（JSON 不接受 bytes）；每帧只编码一次
-        data = base64.b64encode(jpeg).decode('ascii')
+        try:
+            data = base64.b64encode(jpeg).decode('ascii')
+        except Exception:
+            return
         for cb in targets:
             try:
                 cb(data, width, height, stamp, len(jpeg))
@@ -262,6 +290,18 @@ class CameraManager:
             return 0.0
 
     def _on_compressed(self, camera_id, msg):
+        """rclpy 回调入口：异常必须就地吞掉。
+
+        未捕获异常会冲出 rclpy.spin()，整个执行器随之退出——遥测、关节命令、相机
+        同时停摆，但 WebSocket 仍在应答（现场表现为"服务假死"，且 systemd 不重启）。
+        """
+        try:
+            self._handle_compressed(camera_id, msg)
+        except Exception as exc:
+            self.log(f'[camera] {camera_id} compressed 帧处理异常（已丢弃该帧）：'
+                     f'{type(exc).__name__}: {exc}')
+
+    def _handle_compressed(self, camera_id, msg):
         cv2 = self._cv2
         if cv2 is None:
             return
@@ -283,6 +323,14 @@ class CameraManager:
         self._encode_and_deliver(cv2, targets, frame, self._stamp(msg))
 
     def _on_image(self, camera_id, msg):
+        """同 _on_compressed：raw 回退路径同样不允许异常逃逸到执行器。"""
+        try:
+            self._handle_image(camera_id, msg)
+        except Exception as exc:
+            self.log(f'[camera] {camera_id} raw 帧处理异常（已丢弃该帧）：'
+                     f'{type(exc).__name__}: {exc}')
+
+    def _handle_image(self, camera_id, msg):
         cv2 = self._cv2
         if cv2 is None:
             return
