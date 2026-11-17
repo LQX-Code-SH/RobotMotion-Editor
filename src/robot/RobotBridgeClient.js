@@ -163,6 +163,13 @@ export class RobotBridgeClient {
     setMode(mode) { return this.request('set_mode', { mode }); }
     enable() { return this.request('enable'); }
     disable() { return this.request('disable'); }
+
+    /**
+     * 失能但不等待 ack：关闭同步控制 / 断开连接时用于"立即撒手"。
+     * 等待 ack 会拖住断开流程，而失能本身是幂等的。
+     */
+    disableNoAck() { this._send({ type: 'disable' }); }
+
     sendJointTargets(targets) { return this.request('joint_targets', { targets }); }
 
     /**

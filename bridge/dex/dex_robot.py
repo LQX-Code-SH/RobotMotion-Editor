@@ -60,13 +60,15 @@ class DexRobot:
     """关节组控制与状态缓存。"""
 
     def __init__(self, node, rate_hz=50.0, max_joint_speed=1.2,
-                 spd=DEFAULT_SPD, cur=DEFAULT_CUR, logger=print):
+                 spd=DEFAULT_SPD, cur=DEFAULT_CUR, release_after_s=5.0, logger=print):
         self.node = node
         self.rate_hz = float(rate_hz)
         self.max_joint_speed = float(max_joint_speed)
         # 驱动侧参数：实测 spd 在位置模式下**生效**（0.3 rad/s 阶跃 0.3rad 用时 0.96s）
         self.spd = float(spd)
         self.cur = float(cur)
+        # 轨迹结束/停止后静置多久自动失能（0 = 不自动释放，会一直保持）
+        self.release_after_s = max(0.0, float(release_after_s or 0.0))
         self.log = logger
 
         self.enabled = False
@@ -84,6 +86,7 @@ class DexRobot:
         self._trajectory = None     # {frames, fps, loop, start, id, idx}
         self._traj_done = None
         self._events = []
+        self._release_at = None     # 自动失能时刻（monotonic）；None = 不释放
 
         self._pubs = {}
         self._msg_cls = {}
@@ -191,6 +194,29 @@ class DexRobot:
             self._state = readings
             self._last_state_at = time.monotonic()
 
+    # ---------- 自动失能（释放双臂保持） ----------
+
+    def _schedule_release(self):
+        """轨迹结束/停止后延时失能。
+
+        使能状态下只要 ``_targets`` 非空，_tick 就会以 50Hz 无限重发同一组目标；
+        轨迹播完后目标保留在末帧，表现为双臂被一直顶住（现场无法手动摆位，
+        其它程序也抢不到控制权）。因此这里给一个静置超时，到点自动置为未使能。
+        """
+        self._release_at = (time.monotonic() + self.release_after_s
+                            if self.release_after_s > 0 else None)
+
+    def _release_if_due(self):
+        """静置超时则失能；返回是否刚刚失能（调用方负责记事件/日志）。"""
+        if self._release_at is None or time.monotonic() < self._release_at:
+            return False
+        self._release_at = None
+        self.enabled = False
+        self._trajectory = None
+        self._targets = {}
+        self.mode = 'idle'
+        return True
+
     # ---------- 周期控制 ----------
 
     def _tick(self):
@@ -199,6 +225,13 @@ class DexRobot:
         with self._lock:
             self._advance_trajectory()
             if not self.enabled:
+                return
+            if self._release_if_due():
+                self._events.append({
+                    'level': 'system',
+                    'message': f'轨迹结束静置 {self.release_after_s:g}s，已自动失能（释放双臂保持）',
+                })
+                self.log('[dex] 静置超时，自动失能：停止关节保持流')
                 return
 
             groups = {}
@@ -271,6 +304,7 @@ class DexRobot:
             self._traj_done = traj['id']
             self._trajectory = None
             self.mode = 'idle'
+            self._schedule_release()
             return
 
         # 线性插值
@@ -294,16 +328,22 @@ class DexRobot:
         if self.estop:
             return False, '急停激活中，无法使能'
         with self._lock:
-            # 从当前读数初始化命令值，避免使能瞬间跳变
+            # 从当前读数初始化命令值，避免使能瞬间跳变；
+            # 失能→使能时清掉旧目标，否则会朝上次的末帧目标再走一遍（臂自己动起来）。
+            if not self.enabled:
+                self._targets = {}
             self._command = {name: state['position'] for name, state in self._state.items()}
             self.enabled = True
+            self._release_at = None
         return True, ''
 
     def disable(self):
         with self._lock:
             self.enabled = False
             self._trajectory = None
+            self._targets = {}
             self.mode = 'idle'
+            self._release_at = None
         return True, ''
 
     def set_mode(self, mode):
@@ -313,6 +353,8 @@ class DexRobot:
             if mode != 'execute':
                 self._trajectory = None
             self.mode = mode
+            # 显式切模式视为有新意图，取消待执行的静置失能
+            self._release_at = None
         return True, ''
 
     def set_joint_targets(self, targets):
@@ -345,6 +387,7 @@ class DexRobot:
 
         with self._lock:
             self._targets.update(applied)
+            self._release_at = None
         result = {'accepted': True, 'applied': applied}
         if rejected:
             result['rejected'] = rejected
@@ -384,6 +427,7 @@ class DexRobot:
                 'idx': 0,
             }
             self.mode = 'execute'
+            self._release_at = None
         return {
             'accepted': True,
             'frameCount': len(normalized),
@@ -393,9 +437,10 @@ class DexRobot:
     def stop(self):
         with self._lock:
             self._trajectory = None
-            # 冻结在最后命令值（相当于僵停保持）
+            # 冻结在最后命令值（相当于僵停保持），静置后仍会自动失能
             self._targets = dict(self._command)
             self.mode = 'idle'
+            self._schedule_release()
         return True
 
     def emergency_stop(self):
@@ -405,6 +450,7 @@ class DexRobot:
             self._targets = {name: state['position'] for name, state in self._state.items()}
             self._command = dict(self._targets)
             self.mode = 'idle'
+            self._release_at = None
             self.estop = True
             self.estop_reason = 'software'
         self._events.append({'level': 'warning', 'message': '软件急停：已停止下发'})

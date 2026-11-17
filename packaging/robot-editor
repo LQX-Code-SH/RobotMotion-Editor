@@ -69,6 +69,7 @@ cmd_exec() {
         --spd "${BRIDGE_SPD:-0.3}"
         --cur "${BRIDGE_CUR:-10}"
         --max-speed "${BRIDGE_MAX_SPEED:-1.2}"
+        --release-after-s "${BRIDGE_RELEASE_AFTER:-5}"
     )
     [ -n "${BRIDGE_NAME:-}" ] && args+=(--name "$BRIDGE_NAME")
     # BRIDGE_EXTRA 允许填多个开关（如 "--trace"），按空格拆分

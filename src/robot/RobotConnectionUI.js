@@ -80,6 +80,7 @@ export class RobotConnectionUI {
         this._retryAt = 0;               // 使能/模式自动重试的限频时间戳
         this._unsubscribePose = null;
         this._motionBusy = false;        // 正在执行「发送当前位姿 / 回零」轨迹
+        this._releaseOnMotionDone = false; // 本次轨迹结束后是否立即失能释放双臂
         this._motionTimer = null;        // 轨迹完成回执兜底超时
         this._handTimer = null;          // 手部归一化时序下发
         this._lastHandValues = { left: null, right: null };
@@ -266,7 +267,7 @@ export class RobotConnectionUI {
      * 视口操作 -> 真机同步控制。
      * 开启后视口里拖动关节 / 末端 IK 会按 50Hz 节流下发 follow 目标（手指 20Hz）。
      */
-    setSyncControl(enabled, { silent = false } = {}) {
+    setSyncControl(enabled, { silent = false, release = true } = {}) {
         const next = Boolean(enabled);
         const toggle = document.getElementById('robot-sync-control-toggle');
 
@@ -299,7 +300,10 @@ export class RobotConnectionUI {
             this._lastSentHandTargets = null;
             this._lastHandSentAt = 0;
             this._syncSuspended = false;
-            Promise.resolve(this.client.setMode?.('follow')).catch(() => {});
+            // 桥接可能已因静置/断连自动失能：先补一次使能，再切 follow
+            Promise.resolve(this.client.enable?.())
+                .then(() => this.client.setMode?.('follow'))
+                .catch(() => {});
             const vendor = this.device?.hands?.vendor || 'none';
             if (vendor !== 'none') {
                 const handPlan = planHandMove({
@@ -326,7 +330,9 @@ export class RobotConnectionUI {
                 clearTimeout(this._syncTimer);
                 this._syncTimer = null;
             }
-            if (!silent) this.appendLog('system', '真机同步控制已关闭。');
+            // 关闭同步控制即释放双臂：否则桥接会以 50Hz 一直重发最后一组目标
+            if (release && this.client.connected) this.client.disableNoAck();
+            if (!silent) this.appendLog('system', '真机同步控制已关闭（已释放双臂，停止保持流）。');
         }
         this._updateReadPoseButton();
         // 「真机播放」与同步控制互斥：开关状态变了就同步动画编辑器按钮
@@ -494,6 +500,27 @@ export class RobotConnectionUI {
             }
         }
         return false;
+    }
+
+    /**
+     * 下发动作前确保真机已使能。
+     * 桥接在轨迹结束静置 / 最后一个控制端断开后会自动失能释放双臂，
+     * 所以不能只依赖连接时那一次自动使能，每次下发前都要补一次。
+     */
+    async _ensureEnabled() {
+        if (this.client.status?.estop) return false;
+        // 遥测有 50ms 级延迟：刚释放完立刻下发时 status.enabled 可能还是旧值，
+        // 所以这里无条件补一次 enable（桥接侧幂等），而不是只看 status。
+        const wasEnabled = this.client.status?.enabled;
+        const ack = await this.client.enable();
+        if (ack?.accepted === false) {
+            this.appendLog('error', `自动使能失败：${ack.reason || '未知原因'}`);
+            return false;
+        }
+        if (!wasEnabled) {
+            this.appendLog('system', '已重新使能（上次动作结束后自动释放过双臂）。');
+        }
+        return true;
     }
 
     /** 未使能时每 3s 尝试一次重新使能（急停中由桥接拒绝，不会抢跑）。 */
@@ -717,7 +744,13 @@ export class RobotConnectionUI {
     disconnect() {
         const wasConnected = Boolean(this.device);
         this._cancelMotion();
-        this.setSyncControl(false, { silent: true });
+        // release:false：下面统一发一次失能，避免两条分支各发一遍
+        this.setSyncControl(false, { silent: true, release: false });
+        // 点「断开」必须撒手：否则桥接会保留使能状态继续 50Hz 保持最后一组目标
+        if (this.client.connected) {
+            this.client.disableNoAck();
+            this.appendLog('system', '已发送失能，释放双臂（停止保持流）。');
+        }
         this.robotGhost?.clear();
         this.lastJointStates = null;
         this._lastStatusAt = 0;
@@ -1079,6 +1112,8 @@ export class RobotConnectionUI {
         this._clearMotionTimer();
 
         try {
+            // 桥接可能已自动失能（上次动作结束静置 / 断连释放），下发前先补使能
+            if (!(await this._ensureEnabled())) throw new Error('真机未使能（自动使能失败）');
             const modeAck = await this.client.setMode('execute');
             if (modeAck?.accepted === false) {
                 throw new Error(`切换 execute 模式失败：${modeAck.reason || '未知原因'}`);
@@ -1183,7 +1218,7 @@ export class RobotConnectionUI {
             const autoSync = this._autoSyncAfterMove;
             this._autoSyncAfterMove = false;
             if (autoSync) this._scheduleSyncFromRobot(0);
-            this._resumeFollowIfNeeded();
+            if (!this._releaseAfterMotion()) this._resumeFollowIfNeeded();
         }, Math.max(1000, durationMs + MOTION_DONE_MARGIN_MS));
     }
 
@@ -1191,6 +1226,19 @@ export class RobotConnectionUI {
         if (this.syncControlEnabled) {
             Promise.resolve(this.client.setMode?.('follow')).catch(() => {});
         }
+    }
+
+    /**
+     * 动作结束后立即失能释放双臂（目前用于动画真机播放）。
+     * 桥接侧还有一层"静置 N 秒自动失能"兜底；这里提前撒手，播放完就交还控制权。
+     * @returns {boolean} 本次是否已释放
+     */
+    _releaseAfterMotion() {
+        if (!this._releaseOnMotionDone) return false;
+        this._releaseOnMotionDone = false;
+        if (this.client.connected) this.client.disableNoAck();
+        this.appendLog('system', '已释放双臂（停止关节保持流）；下次下发动作会自动重新使能。');
+        return true;
     }
 
     /** 动作结束后稍等一帧遥测，再把真机实际姿态同步到视口（含手指）。 */
@@ -1217,6 +1265,7 @@ export class RobotConnectionUI {
         }
         this._pendingHandTargets = null;
         this._autoSyncAfterMove = false;
+        this._releaseOnMotionDone = false;
         this._lastSentHandTargets = null;
         this._setMotionBusy(false);
         this._syncSuspended = false;
@@ -1310,6 +1359,8 @@ export class RobotConnectionUI {
         this._clearMotionTimer();
 
         try {
+            // 上次播放结束会释放双臂（桥接自动失能），这里必须补一次使能
+            if (!(await this._ensureEnabled())) throw new Error('真机未使能（自动使能失败）');
             const modeAck = await this.client.setMode('execute');
             if (modeAck?.accepted === false) {
                 throw new Error(`切换 execute 模式失败：${modeAck.reason || '未知原因'}`);
@@ -1327,6 +1378,8 @@ export class RobotConnectionUI {
                 this.appendLog('system', '该动画设为循环，真机只播放一遍（不循环）。');
             }
             this._autoSyncAfterMove = true;
+            // 动画真机播放结束即释放双臂，不等桥接静置超时
+            this._releaseOnMotionDone = true;
             if (handPlan?.hasMotion) this._streamHandFrames(handPlan.sides);
             this._armMotionTimeout(totalMs);
             // 视口联动：时间轴按同一节奏单次播放（过渡段有延迟），让用户看到动画
@@ -1443,7 +1496,10 @@ export class RobotConnectionUI {
         if (!this._requireConnected()) return;
         const ack = await this.client.stop();
         this._cancelMotion();
-        this.appendLog(ack.accepted ? 'system' : 'error', ack.accepted ? '已发送停止指令。' : '停止指令失败。');
+        const releaseS = Number(this.device?.releaseAfterS) || 0;
+        this.appendLog(ack.accepted ? 'system' : 'error', ack.accepted
+            ? `已发送停止指令${releaseS > 0 ? `（静置 ${releaseS}s 后自动失能释放双臂）` : ''}。`
+            : '停止指令失败。');
     }
 
     async emergencyStop() {
@@ -1451,8 +1507,8 @@ export class RobotConnectionUI {
         const ack = await this.client.emergencyStop();
         this._cancelMotion();
         this.appendLog(ack.accepted ? 'warning' : 'error', ack.accepted ? '⚠ 急停已触发！机器人已失能。' : '急停指令失败，请立即使用物理急停按钮！');
-        // 急停后绝不能继续下发同步目标
-        this.setSyncControl(false, { silent: true });
+        // 急停后绝不能继续下发同步目标（急停本身已失能，无需再发 disable）
+        this.setSyncControl(false, { silent: true, release: false });
     }
 
     _requireConnected(includeDevice = false) {
@@ -1470,7 +1526,8 @@ export class RobotConnectionUI {
             // 连接尝试过程中的关闭不计入“掉线”
             if (!this.device) return;
             this._cancelMotion();
-            this.setSyncControl(false, { silent: true });
+            // 连接已断，disable 发不出去；桥接侧会在最后一个控制端断开时自动失能
+            this.setSyncControl(false, { silent: true, release: false });
             this.robotGhost?.clear();
             this.lastJointStates = null;
             this._lastStatusAt = 0;
@@ -1515,6 +1572,8 @@ export class RobotConnectionUI {
             const autoSync = this._autoSyncAfterMove;
             this._autoSyncAfterMove = false;
             if (autoSync) this._scheduleSyncFromRobot();
+            // 动画真机播放结束：立即失能释放双臂，不再等桥接的静置超时
+            if (this._releaseAfterMotion()) return;
             // 轨迹结束真机会落到 execute/idle，继续同步前先回到 follow 模式
             this._resumeFollowIfNeeded();
         };
