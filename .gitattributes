@@ -34,5 +34,6 @@ robot/**/*.exr filter=lfs diff=lfs merge=lfs -text
 *.md text eol=lf
 *.csv text eol=lf
 
-# 自包含安装包（robot-editor_<version>_<arch>.deb）
-Release/*.deb filter=lfs diff=lfs merge=lfs -text
+# 自包含安装包不再入库：Release/*.deb 已加入 .gitignore，
+# 由 `scripts/build-deb.sh`（PUBLISH=1）上传到 GitHub Release 附件分发。
+# 138 MB/版的二进制留在对象库会很快耗尽 Git LFS 配额（1 GB 存储 / 1 GB 月流量）。

@@ -86,3 +86,25 @@ find "$OUT_DIR" -maxdepth 1 -name '*.deb' ! -name "$PKG" -delete
 
 echo "[build] 产物：$OUT_DIR/$PKG（$(du -h "$OUT_DIR/$PKG" | cut -f1)）"
 dpkg-deb -f "$OUT_DIR/$PKG" Package Version Architecture Depends
+
+# ---- 发布到 GitHub Release（可选）----
+# 安装包不进仓库（.deb 已 .gitignore）：138 MB/版放进 Git LFS 会很快耗尽配额，
+# 改为 Release 附件分发。发布后附件不可替换，重发必须 bump 版本号。
+if [ "${PUBLISH:-0}" = "1" ]; then
+    TAG=${TAG:-v${VERSION}}
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "[publish] 未安装 gh，请先 apt install gh 并 gh auth login" >&2
+        exit 1
+    fi
+    if gh release view "$TAG" >/dev/null 2>&1; then
+        echo "[publish] Release $TAG 已存在（附件不可替换）：请 bump 版本号或删除该 Release" >&2
+        exit 1
+    fi
+    gh release create "$TAG" "$OUT_DIR/$PKG" \
+        --title "robot-editor ${VERSION}" \
+        --notes "${NOTES:-robot-editor ${VERSION}}" \
+        --target "${TARGET:-main}"
+    echo "[publish] 已发布 $TAG"
+else
+    echo "[build] 发布：PUBLISH=1 scripts/build-deb.sh（需 gh auth login）"
+fi

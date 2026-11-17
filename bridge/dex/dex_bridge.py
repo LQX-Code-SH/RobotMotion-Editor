@@ -422,6 +422,57 @@ class DexBridge:
 
         self._setup_backends()
 
+    @staticmethod
+    def _local_ipv4_addresses():
+        """枚举本机网卡的 IPv4 地址（不引入第三方依赖）。"""
+        import fcntl
+        import struct
+
+        addrs = []
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            for _, name in socket.if_nameindex():
+                try:
+                    packed = fcntl.ioctl(
+                        sock.fileno(), 0x8915,  # SIOCGIFADDR
+                        struct.pack('256s', name.encode('utf-8')[:15]))
+                except OSError:
+                    continue
+                addrs.append(socket.inet_ntoa(packed[20:24]))
+        finally:
+            sock.close()
+        return addrs
+
+    def _wait_for_ipv4(self, timeout_s=120.0, interval_s=0.5):
+        """等本机有非环回 IPv4 后再初始化 DDS。
+
+        Fast DDS 只在构造 UDPv4 transport 时枚举一次网卡：若此刻网卡尚未配好
+        IP（开机自启动常见，本服务可能早于 NetworkManager 抢到 IP），所有候选
+        接口会被 netmask 规则过滤掉，日志打印
+        ``[TRANSPORT_UDPV4 Error] All whitelist interfaces were filtered out``，
+        并且**不会重试**。结果是该进程的节点不在 ROS 图里、相机帧和关节状态
+        全部静默，而 WebSocket 侧一切正常，很难被发现。这里在 rclpy.init 之前
+        显式等待，把竞态挡在 DDS 初始化之前。
+        """
+        deadline = time.monotonic() + timeout_s
+        started = time.monotonic()
+        while True:
+            try:
+                addrs = [a for a in self._local_ipv4_addresses() if not a.startswith('127.')]
+            except Exception as exc:
+                self.log(f'[bridge] 网卡枚举失败，跳过网络等待：{exc}')
+                return True
+            if addrs:
+                waited = time.monotonic() - started
+                if waited >= 1.0:
+                    self.log(f'[bridge] 网络就绪（等待 {waited:.1f}s）：{", ".join(addrs)}')
+                return True
+            if time.monotonic() >= deadline:
+                self.log(f'[bridge] 警告：{timeout_s:.0f}s 内未检测到可用 IPv4 网卡，'
+                         'DDS 可能无法建立传输（检查网卡 / 共享内存）')
+                return False
+            time.sleep(interval_s)
+
     def _setup_backends(self):
         if self.args.dry_run:
             self.log('[bridge] dry-run 模式：不连接 ROS，仅验证协议')
@@ -434,6 +485,9 @@ class DexBridge:
         from dex_robot import DexRobot
         from dex_hands import create_hands
         from dex_camera import CameraManager
+
+        # 必须先等网络：rclpy.init 会立刻建 DDS 参与者，网卡没 IP 时传输永久残缺。
+        self._wait_for_ipv4()
 
         rclpy.init(args=None)
         self.ros_node = rclpy.create_node('robot_motion_dex_bridge')
@@ -456,6 +510,26 @@ class DexBridge:
 
         self.ros_thread = threading.Thread(target=spin, daemon=True)
         self.ros_thread.start()
+
+        def dds_selfcheck():
+            # DDS 传输残缺时进程照常运行、WS 照常应答，只是 ROS 图里什么都看不到，
+            # 表现为网页相机黑屏且关节状态全空。留一条可检索的日志避免静默失联。
+            time.sleep(8.0)
+            try:
+                topics = self.ros_node.get_topic_names_and_types()
+                nodes = self.ros_node.get_node_names()
+                pubs = self.ros_node.count_publishers('/ob_camera_head/color/image_raw')
+            except Exception as exc:
+                self.log(f'[ros] DDS 自检异常：{exc}')
+                return
+            if not topics and len(nodes) <= 1:
+                self.log('[ros] 警告：ROS 图为空，DDS 传输可能未建立'
+                         '（检查网卡就绪 / "All whitelist interfaces were filtered out"）')
+            else:
+                self.log(f'[ros] DDS 自检：话题 {len(topics)} 个，节点 {len(nodes)} 个，'
+                         f'头部相机发布端 {pubs} 个')
+
+        threading.Thread(target=dds_selfcheck, daemon=True).start()
 
     # ---------- 消息载荷 ----------
 

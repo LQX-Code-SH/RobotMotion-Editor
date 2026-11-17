@@ -2,9 +2,13 @@
 Description=Robot Motion Editor (bridge + web frontend)
 Documentation=file:/usr/share/doc/robot-editor/USAGE.md
 # 本项目作为一个整体管理：start 同时拉起前端 nginx，stop 同时停掉前端。
-# ROS 2 的 DDS 依赖网络就绪；不要求图形会话
-After=network-online.target nginx.service
-Wants=network-online.target nginx.service
+# ROS 2 的 DDS 依赖网络就绪；不要求图形会话。
+# 注意：Fast DDS 只在进程启动时枚举一次网卡，若此刻还没拿到 IP，会打印
+# "All whitelist interfaces were filtered out" 并永久丢失 UDP 传输（不重试），
+# 表现为节点不在 ROS 图里、网页相机黑屏、关节状态全空。network-online.target
+# 不保证业务网卡已有 IP，因此再显式等待 NetworkManager 的在线判定。
+After=network-online.target NetworkManager-wait-online.service nginx.service
+Wants=network-online.target NetworkManager-wait-online.service nginx.service
 # systemd >= 249：停止本单元时同步停止 nginx（restart 不影响 nginx）
 PropagatesStopTo=nginx.service
 
@@ -13,6 +17,9 @@ Type=simple
 # 必须是能访问 ROS 2 话题的那个普通用户（安装时按构建用户写入），不要用 root
 User=@RUN_USER@
 Environment=HOME=/home/@RUN_USER@
+# 双保险：桥接内部也会等网卡（dex_bridge._wait_for_ipv4），这里先挡一层。
+# 只用 sh 内置命令 + timeout，避免 systemd 对 $VAR 的替换行为影响脚本。
+ExecStartPre=/bin/sh -c 'command -v ip >/dev/null 2>&1 || exit 0; timeout 60 sh -c "until ip -4 -o addr show scope global 2>/dev/null | grep -q inet; do sleep 1; done" || true'
 ExecStart=/usr/bin/robot-editor _exec
 # 桥接异常退出时自动拉起；正常停止（SIGTERM 看门狗）不重启
 Restart=on-failure
