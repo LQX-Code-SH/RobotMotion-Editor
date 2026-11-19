@@ -387,13 +387,36 @@
     "adapter": "mock",
     "wsPort": 8081,
     "beaconPort": 45678,
-    "protocol": 1
+    "protocol": 1,
+    "backend": "tienkung_pro",
+    "displayName": "Walker TienKung Pro",
+    "capabilities": {
+      "jointGroups": [
+        "arm",
+        "head",
+        "waist"
+      ],
+      "trajectory": true,
+      "hands": true,
+      "cameras": 0,
+      "estop": true,
+      "legLocked": true,
+      "releaseAfterS": 5
+    }
   },
   "assets": {
     "urdf": "model/tienkung_pro_with_hands.urdf",
     "meshes": "model/meshes/",
     "variants": [
       "model/tienkung_pro_with_hands.urdf"
-    ]
+    ],
+    "endEffectors": {
+      "pro-6-norm": {
+        "label": "Pro 6 通道 Inspire",
+        "channels": 6,
+        "unit": "norm-0to1",
+        "urdf": "model/tienkung_pro_with_hands.urdf"
+      }
+    }
   }
 }

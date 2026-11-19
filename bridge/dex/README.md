@@ -1,10 +1,28 @@
-# TienKung Dex 真机桥接（Python / ROS 2）
+# 真机桥接（Python / ROS 2）
 
-天工 DEX（`walker-tienkung-dex`）真机适配层。运行在机器人算力主机（`nvidia@192.168.41.2`），
 将网页端的动作编辑指令转换为 ROS 2 话题下发，并把关节/灵巧手/相机状态回传给浏览器。
-
 与 Node 版桥接（`bridge/robot-server.js`）共用同一套 UDP 发现与 WebSocket 协议，
 `bridge/station.js` 网关可直接代理；本服务额外支持灵巧手与相机。
+
+## 目录结构
+
+```
+bridge/dex/
+  dex_bridge.py              # 协议层入口（WS / UDP / 消息路由），机型无关
+  models/
+    __init__.py              # 机型注册表：model → 目录
+    tienkung_dex/            # 天工 Dex（已打通）：joint_map / dex_robot / dex_hands / dex_camera / backend
+    tienkung_pro/            # 天工 Pro（骨架已备，真机待核对）
+    walker_s2/               # Walker S2（骨架已备，真机待核对）
+    walker_c1/               # Walker C1（骨架已备，真机待核对）
+    _walker_common/          # Walker 家族共享的关节/手后端
+```
+
+`dex_bridge.py` 按 `--model` 注入对应机型目录到 `sys.path`，并调用该目录 `backend.create_backends()`
+创建 `(robot, hands, cameras)`。协议层不含任何机型专属逻辑。新增机型见
+`docs/multi-robot-adaptation.md`。
+
+以下环境要求与运行说明以 **TienKung Dex** 为准；其他机型的 ROS2 版本/消息包见方案文档。
 
 ## 环境要求
 
@@ -44,9 +62,9 @@ python3 dex_bridge.py --dry-run
 | `--status-port` | `8082` | 只读状态通道（`0` 禁用） |
 | `--camera-port` | `8083` | 只读相机通道（`0` 禁用） |
 | `--beacon-port` | `45678` | UDP 设备发现端口 |
-| `--model` | `walker-tienkung-dex` | 机型标识（网页机型列表对应） |
+| `--model` | `walker-tienkung-dex` | 机型标识，决定加载 `models/<机型>/` 后端：`walker-tienkung-dex` / `walker-tienkung-pro` / `walker-s2` / `walker-c1` |
 | `--name` | `TienKung Dex` | 设备显示名 |
-| `--hand` | `auto` | 灵巧手：`brainco` / `inspire` / `auto` / `none` |
+| `--hand` | `auto` | 末端：`brainco` / `inspire` / `auto` / `none`；S2 夹爪用 `gripper` |
 | `--rate` | `50` | 关节命令下发频率（Hz，SDK 要求 20~50 持续发布） |
 | `--telemetry-hz` | `20` | 状态回传频率 |
 | `--max-speed` | `1.2` | 目标斜坡最大角速度（rad/s） |

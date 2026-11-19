@@ -32,7 +32,7 @@
 |---|---|
 | `src/`、`index.html` | 前端（Three.js 视口、动画编辑器、真机控制面板） |
 | `bridge/` | 机器人端桥接 `robot-server.js` 与操作站网关 `station.js` |
-| `bridge/dex/` | 天工 DEX 的 ROS 2 桥接（`dex_bridge.py`） |
+| `bridge/dex/` | 协议层入口 `dex_bridge.py` + `models/<机型>/` 分目录的 ROS 2 适配（dex/pro/s2/c1） |
 | `bridge/deploy/` | 型号清单与安装编排（`manifest.json` / `deployer.js` / `cli.js`） |
 | `manager/` | **robot-editor 管理器**（Tkinter GUI：安装 / 启停 / 重启 / 日志 / 自启 / 卸载） |
 | `packaging/` | `.deb` 打包素材（systemd 单元、postinst、nginx 站点、管理命令） |

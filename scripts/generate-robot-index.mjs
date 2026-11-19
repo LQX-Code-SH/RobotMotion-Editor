@@ -46,6 +46,24 @@ function endEffectorOf(model, fileName) {
 
 const robots = [];
 
+/**
+ * 解析一个变体条目，返回 { path, endEffector } 或 null。
+ * 新格式：{ path, endEffector }（末端类型由 profile 显式声明）
+ * 旧格式：字符串（回退到 endEffectorOf() 的文件名启发式）
+ */
+function resolveVariant(model, variant) {
+    if (variant && typeof variant === 'object') {
+        const path = variant.path;
+        const endEffector = variant.endEffector;
+        if (!path || !endEffector || endEffector === 'none') return null;
+        return { path, endEffector };
+    }
+    if (typeof variant !== 'string') return null;
+    const fileName = variant.split('/').pop();
+    const endEffector = endEffectorOf(model, fileName);
+    return endEffector ? { path: variant, endEffector } : null;
+}
+
 for (const entry of readdirSync(ROBOT_DIR, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const model = entry.name;
@@ -53,25 +71,28 @@ for (const entry of readdirSync(ROBOT_DIR, { withFileTypes: true })) {
     if (!existsSync(profilePath)) continue;
 
     const profile = JSON.parse(readFileSync(profilePath, 'utf-8'));
-    const urdfDir = join(ROBOT_DIR, model, 'model', 'urdf');
 
     const variants = profile.assets?.variants?.length
         ? profile.assets.variants
         : (profile.assets?.urdf ? [profile.assets.urdf] : []);
 
+    // 该机型支持的末端协议类型清单（welcome.hands.type 的合法值集合）。
+    // additive 字段：旧版前端忽略它，不影响现有行为。
+    const endEffectorTypes = Object.keys(profile.assets?.endEffectors || {});
+
     for (const variant of variants) {
-        const fileName = variant.split('/').pop();
-        const endEffector = endEffectorOf(model, fileName);
-        if (!endEffector) continue;
+        const resolved = resolveVariant(model, variant);
+        if (!resolved) continue;
 
         robots.push({
-            id: `${model}-${endEffector}`,
-            label: `${model}-${endEffector}`,
+            id: `${model}-${resolved.endEffector}`,
+            label: `${model}-${resolved.endEffector}`,
             model,
             displayName: profile.displayName || model,
-            endEffector,
-            urdf: `robot/${model}/${variant}`,
-            default: variant === profile.assets?.urdf
+            endEffector: resolved.endEffector,
+            urdf: `robot/${model}/${resolved.path}`,
+            default: resolved.path === profile.assets?.urdf,
+            endEffectorTypes
         });
     }
 }

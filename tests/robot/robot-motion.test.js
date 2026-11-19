@@ -397,3 +397,43 @@ test('planClipHands stays still for clips without finger keys', () => {
     assert.equal(plan.hasMotion, false);
     assert.ok(plan.sides.left.every(frame => Math.abs(frame.values[0] - 0.42) < 1e-6));
 });
+
+test('pgc-gripper single channel uses the existing array path (0..1 over joint limits)', () => {
+    // S2 PGC 夹爪：jointMap 单元素，归一化 0..1 按夹爪关节 lower/upper 映射。
+    // 这验证前端无需专门的标量分支——单元素数组路径已覆盖。
+    const hands = {
+        vendor: 'gripper',
+        type: 'pgc-gripper',
+        sides: {
+            left: { jointMap: ['left_grip_joint'] },
+            right: { jointMap: ['right_grip_joint'] }
+        }
+    };
+    const ranges = {
+        left_grip_joint: { lower: 0, upper: 0.8, value: 0.4 },
+        right_grip_joint: { lower: 0, upper: 0.8, value: 0.4 }
+    };
+
+    // 归一化 0.5 → 0.4 rad（行程中位）
+    const state = handPoseFromState({
+        hands,
+        ranges,
+        valuesBySide: { left: [0.5], right: [0.25] }
+    });
+    assert.equal(state.matched, 2);
+    assert.ok(Math.abs(state.pose.left_grip_joint - 0.4) < 1e-6);
+    assert.ok(Math.abs(state.pose.right_grip_joint - 0.2) < 1e-6);
+
+    // 视口关节角 0.6 rad → 归一化 0.75
+    const plan = planHandMove({
+        hands,
+        ranges: {
+            left_grip_joint: { lower: 0, upper: 0.8, value: 0.6 },
+            right_grip_joint: { lower: 0, upper: 0.8, value: 0.6 }
+        },
+        startBySide: { left: [0.5], right: [0.5] }
+    });
+    assert.equal(plan.matched, 2);
+    assert.equal(plan.sides.left.count, 1);
+    assert.ok(Math.abs(plan.sides.left.to[0] - 0.75) < 1e-6);
+});

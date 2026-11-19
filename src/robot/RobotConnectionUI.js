@@ -69,6 +69,7 @@ export class RobotConnectionUI {
 
         this.client = new RobotBridgeClient();
         this.device = null;              // 当前连接的设备档案
+        this.expectedEndEffectorTypes = null; // 当前预览机型支持的末端协议类型（由 catalog 提供）
         this.state = 'idle';             // idle | connecting | connected | error
         this.stateMessage = '';          // 失败原因等状态说明
         this.lastJointStates = null;     // 最近一帧真机关节状态（一次性读取 / 幽灵层）
@@ -472,6 +473,7 @@ export class RobotConnectionUI {
 
     /** 视口 → 手部归一化目标（按真机手型的 jointMap 顺序）。 */
     _handTargetsFromPose(pose) {
+        if (this._endEffectorMismatch) return null;
         if (!this.device?.hands?.sides) return null;
         const plan = planHandMove({
             hands: this.device.hands,
@@ -656,12 +658,39 @@ export class RobotConnectionUI {
         return (devices || []).filter(device => device.online);
     }
 
+    /** 由机型选择器通知：当前预览机型支持的末端协议类型清单。 */
+    setExpectedEndEffector(types) {
+        this.expectedEndEffectorTypes = Array.isArray(types) && types.length ? types : null;
+    }
+
+    /**
+     * 校验真机实装末端与预览机型是否匹配。
+     * - hands.type 为 mock-*（dry-run）→ 跳过
+     * - 机型未提供清单（旧版 profile）→ 跳过，保持向后兼容
+     * - 真机 type 在清单内 → 通过
+     * - 不匹配 → 禁用手部控制，但上肢仍可用
+     */
+    validateEndEffector() {
+        const type = this.device?.hands?.type;
+        const allowed = this.expectedEndEffectorTypes;
+        // 每次校验先重置；旧档案/mock/无末端都视为通过（保持向后兼容）
+        this._endEffectorMismatch = false;
+        if (!type || type === 'none' || type.startsWith('mock-')) return true;
+        if (!allowed) return true;   // 旧机型档案无声明，不阻断
+        if (allowed.includes(type)) return true;
+        this._endEffectorMismatch = true;
+        this.appendLog('warning',
+            `真机末端（${type}）与当前预览机型支持的末端不匹配，已禁用手部控制；上肢关节不受影响。`);
+        return false;
+    }
+
     _onConnected(welcome, url) {
         this._setState('connected');
         this.onDeviceChange?.(welcome);
         this.appendLog('system', `连接成功：${welcome.displayName || welcome.name}-${welcome.id}`
             + `（${welcome.model}，${welcome.joints?.length || 0} 关节，适配器：${welcome.adapter}）`);
         this.validateJointMatch();
+        this.validateEndEffector();
         this.cameraUI?.setConnected(true, welcome.cameras);
         this._updateHomeInfo();
         // 面板不再提供使能按钮：连接后自动使能，失败只告警不阻断连接
@@ -880,6 +909,7 @@ export class RobotConnectionUI {
 
     /** 视口 → 手部归一化目标（含插值起点）。 */
     _planHandFromViewport() {
+        if (this._endEffectorMismatch) return null;
         return planHandMove({
             hands: this.device?.hands,
             ranges: this._modelJointRanges(),
@@ -890,6 +920,7 @@ export class RobotConnectionUI {
 
     /** 回零 → 手部回到零点（记录值；未记录则用内置采集值）。 */
     _planHandHome(homeHands = null) {
+        if (this._endEffectorMismatch) return null;
         return planHandMove({
             hands: this.device?.hands,
             ranges: null,
@@ -1435,6 +1466,7 @@ export class RobotConnectionUI {
 
     /** 动画播放期间的手部通道时序（相对轨迹起点，含过渡段）。 */
     _planHandForClip({ clip, startMs, endMs, leadInMs }) {
+        if (this._endEffectorMismatch) return null;
         const vendor = this.device?.hands?.vendor || 'none';
         if (vendor === 'none') return null;
         return planClipHands({

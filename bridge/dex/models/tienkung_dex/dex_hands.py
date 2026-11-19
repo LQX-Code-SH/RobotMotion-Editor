@@ -124,6 +124,9 @@ def inspire_norm_to_code(channel, value):
 
 class BaseHands:
     vendor = 'none'
+    # 末端协议类型：含单位口径，供前端按类型选择换算策略。
+    # 子类必须覆盖；命名见 docs/multi-robot-adaptation.md 4.2.1。
+    hand_type = 'none'
 
     def __init__(self, node, logger=print):
         self.node = node
@@ -139,6 +142,7 @@ class BaseHands:
     def describe(self):
         return {
             'vendor': self.vendor,
+            'type': self.hand_type,
             'sides': {
                 side: {
                     'count': len(self._names.get(side) or []),
@@ -174,6 +178,7 @@ class BaseHands:
 
 class BrainCoHands(BaseHands):
     vendor = 'brainco'
+    hand_type = 'brainco-6-raw'
 
     def __init__(self, node, logger=print):
         super().__init__(node, logger)
@@ -238,6 +243,7 @@ class BrainCoHands(BaseHands):
 
 class InspireHands(BaseHands):
     vendor = 'inspire'
+    hand_type = 'inspire-13-code'
 
     def __init__(self, node, logger=print):
         super().__init__(node, logger)
@@ -321,6 +327,7 @@ class NoHands(BaseHands):
     """未安装灵巧手或未启用时使用。"""
 
     vendor = 'none'
+    hand_type = 'none'
 
     def set_normalized(self, side, values):
         return False

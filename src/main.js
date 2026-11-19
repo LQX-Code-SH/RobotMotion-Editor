@@ -240,7 +240,10 @@ class App {
             );
 
             // Built-in robot model catalog (top-left selector)
-            this.robotCatalogUI = new RobotCatalogUI({ fileHandler: this.fileHandler });
+            this.robotCatalogUI = new RobotCatalogUI({
+                fileHandler: this.fileHandler,
+                onSelect: (entry) => this.robotConnectionUI?.setExpectedEndEffector(entry?.endEffectorTypes)
+            });
             this.robotCatalogUI.init();
             window.robotCatalogUI = this.robotCatalogUI;
 

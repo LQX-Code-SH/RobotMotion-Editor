@@ -33,8 +33,16 @@ chmod 755 "$STAGE"
 echo "[build] robot-editor ${VERSION} / ${ARCH} / 运行用户 ${RUN_USER} / dist=${WITH_DIST}"
 
 # ---- 桥接代码 ----
+# 协议层入口 dex_bridge.py 保持在 /opt/robot-editor/dex/（管理脚本与部署校验引用此路径）。
+# 机型适配按 models/<model>/ 分目录打包；未适配机型目录为空占位，不影响运行。
 install -d -m 755 "$STAGE/opt/robot-editor/dex"
 install -m 644 "$ROOT"/bridge/dex/*.py "$STAGE/opt/robot-editor/dex/"
+if [ -d "$ROOT/bridge/dex/models" ]; then
+    cp -a "$ROOT/bridge/dex/models" "$STAGE/opt/robot-editor/dex/models"
+    find "$STAGE/opt/robot-editor/dex/models" -type d -exec chmod 755 {} +
+    find "$STAGE/opt/robot-editor/dex/models" -type f -exec chmod 644 {} +
+fi
+find "$STAGE/opt/robot-editor/dex/models" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 install -m 644 "$ROOT"/bridge/dex/requirements.txt "$STAGE/opt/robot-editor/dex/" 2>/dev/null || true
 install -m 644 "$ROOT"/bridge/dex/README.md "$STAGE/opt/robot-editor/dex/README.md" 2>/dev/null || true
 

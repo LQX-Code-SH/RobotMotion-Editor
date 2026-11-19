@@ -476,9 +476,20 @@
   ],
   "bridge": {
     "adapter": "mock",
+    "backend": "dex",
+    "displayName": "TienKung Dex",
     "wsPort": 8081,
     "beaconPort": 45678,
-    "protocol": 1
+    "protocol": 1,
+    "capabilities": {
+      "jointGroups": ["arm", "head", "waist"],
+      "trajectory": true,
+      "hands": true,
+      "cameras": 4,
+      "estop": true,
+      "legLocked": true,
+      "releaseAfterS": 5
+    }
   },
   "assets": {
     "urdf": "model/urdf/tienkung_dex_inspire.urdf",
@@ -487,7 +498,21 @@
       "model/urdf/tienkung_dex_base.urdf",
       "model/urdf/tienkung_dex_brainco.urdf",
       "model/urdf/tienkung_dex_inspire.urdf"
-    ]
+    ],
+    "endEffectors": {
+      "inspire-13-code": {
+        "label": "因时 RH56（13 通道）",
+        "channels": 13,
+        "unit": "code-0.1deg",
+        "urdf": "model/urdf/tienkung_dex_inspire.urdf"
+      },
+      "brainco-6-raw": {
+        "label": "BrainCo（6 电机）",
+        "channels": 6,
+        "unit": "norm-1to1000",
+        "urdf": "model/urdf/tienkung_dex_brainco.urdf"
+      }
+    }
   },
   "_note": "灵巧手机型：请在 joints 中追加各灵巧手指关节定义后启用"
 }

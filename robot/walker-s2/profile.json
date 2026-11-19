@@ -373,7 +373,22 @@
     "adapter": "mock",
     "wsPort": 8081,
     "beaconPort": 45678,
-    "protocol": 1
+    "protocol": 1,
+    "backend": "walker_s2",
+    "displayName": "Walker S2",
+    "capabilities": {
+      "jointGroups": [
+        "arm",
+        "head",
+        "waist"
+      ],
+      "trajectory": true,
+      "hands": true,
+      "cameras": 0,
+      "estop": true,
+      "legLocked": true,
+      "releaseAfterS": 5
+    }
   },
   "assets": {
     "urdf": "model/urdf/s2_v1_simple_hand_v4.urdf",
@@ -384,6 +399,20 @@
       "model/urdf/s2_v1_simple_hand_v3.urdf",
       "model/urdf/s2_v1_simple_hand_v4.urdf",
       "model/urdf/s2_v1_simple_noactuator.urdf"
-    ]
+    ],
+    "endEffectors": {
+      "walker-6-mcp": {
+        "label": "S2 V4/V3 6 通道手",
+        "channels": 6,
+        "unit": "norm-0to1",
+        "urdf": "model/urdf/s2_v1_simple_hand_v4.urdf"
+      },
+      "pgc-gripper": {
+        "label": "S2 PGC 1DOF 夹爪",
+        "channels": 1,
+        "unit": "grip-0to1",
+        "urdf": "model/urdf/s2_v1_simple_gripper.urdf"
+      }
+    }
   }
 }

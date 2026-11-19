@@ -9,7 +9,10 @@
       "displayName": "Walker C1",
       "endEffector": "hands",
       "urdf": "robot/walker-c1/model/urdf/walker_c1_with_hands.urdf",
-      "default": true
+      "default": true,
+      "endEffectorTypes": [
+        "walker-6-mcp"
+      ]
     },
     {
       "id": "walker-c1-none",
@@ -18,7 +21,10 @@
       "displayName": "Walker C1",
       "endEffector": "none",
       "urdf": "robot/walker-c1/model/urdf/walker_c1.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "walker-6-mcp"
+      ]
     },
     {
       "id": "walker-s2-clamp",
@@ -27,7 +33,11 @@
       "displayName": "Walker S2",
       "endEffector": "clamp",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_clamp.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "walker-6-mcp",
+        "pgc-gripper"
+      ]
     },
     {
       "id": "walker-s2-gripper",
@@ -36,7 +46,11 @@
       "displayName": "Walker S2",
       "endEffector": "gripper",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_gripper.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "walker-6-mcp",
+        "pgc-gripper"
+      ]
     },
     {
       "id": "walker-s2-hand_v3",
@@ -45,7 +59,11 @@
       "displayName": "Walker S2",
       "endEffector": "hand_v3",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v3.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "walker-6-mcp",
+        "pgc-gripper"
+      ]
     },
     {
       "id": "walker-s2-hand_v4",
@@ -54,7 +72,11 @@
       "displayName": "Walker S2",
       "endEffector": "hand_v4",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v4.urdf",
-      "default": true
+      "default": true,
+      "endEffectorTypes": [
+        "walker-6-mcp",
+        "pgc-gripper"
+      ]
     },
     {
       "id": "walker-s2-noactuator",
@@ -63,7 +85,11 @@
       "displayName": "Walker S2",
       "endEffector": "noactuator",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_noactuator.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "walker-6-mcp",
+        "pgc-gripper"
+      ]
     },
     {
       "id": "walker-tienkung-dex-brainco",
@@ -72,7 +98,11 @@
       "displayName": "Walker TienKung Dex",
       "endEffector": "brainco",
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_brainco.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "inspire-13-code",
+        "brainco-6-raw"
+      ]
     },
     {
       "id": "walker-tienkung-dex-inspire",
@@ -81,7 +111,11 @@
       "displayName": "Walker TienKung Dex",
       "endEffector": "inspire",
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_inspire.urdf",
-      "default": true
+      "default": true,
+      "endEffectorTypes": [
+        "inspire-13-code",
+        "brainco-6-raw"
+      ]
     },
     {
       "id": "walker-tienkung-dex-none",
@@ -90,7 +124,11 @@
       "displayName": "Walker TienKung Dex",
       "endEffector": "none",
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_base.urdf",
-      "default": false
+      "default": false,
+      "endEffectorTypes": [
+        "inspire-13-code",
+        "brainco-6-raw"
+      ]
     },
     {
       "id": "walker-tienkung-pro-hands",
@@ -99,7 +137,10 @@
       "displayName": "Walker TienKung Pro",
       "endEffector": "hands",
       "urdf": "robot/walker-tienkung-pro/model/tienkung_pro_with_hands.urdf",
-      "default": true
+      "default": true,
+      "endEffectorTypes": [
+        "pro-6-norm"
+      ]
     }
   ]
 }

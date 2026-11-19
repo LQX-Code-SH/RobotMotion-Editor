@@ -380,7 +380,22 @@
     "adapter": "mock",
     "wsPort": 8081,
     "beaconPort": 45678,
-    "protocol": 1
+    "protocol": 1,
+    "backend": "walker_c1",
+    "displayName": "Walker C1",
+    "capabilities": {
+      "jointGroups": [
+        "arm",
+        "head",
+        "waist"
+      ],
+      "trajectory": true,
+      "hands": true,
+      "cameras": 0,
+      "estop": true,
+      "legLocked": true,
+      "releaseAfterS": 5
+    }
   },
   "assets": {
     "urdf": "model/urdf/walker_c1_with_hands.urdf",
@@ -390,6 +405,14 @@
       "model/urdf/ubt_right_hand_v3_lite.urdf",
       "model/urdf/walker_c1.urdf",
       "model/urdf/walker_c1_with_hands.urdf"
-    ]
+    ],
+    "endEffectors": {
+      "walker-6-mcp": {
+        "label": "C1 6 通道压缩手",
+        "channels": 6,
+        "unit": "norm-0to1",
+        "urdf": "model/urdf/walker_c1_with_hands.urdf"
+      }
+    }
   }
 }

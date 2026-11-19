@@ -33,8 +33,20 @@ import math
 import os
 import signal
 import socket
+import sys
 import threading
 import time
+
+# 机型适配目录：在 import joint_map 之前，根据 --model 注入对应机型目录到 sys.path。
+# 预扫描 argv 只取 --model 的值；完整参数解析仍在 parse_args() 中完成。
+from models import MODEL_DIRS, DEFAULT_MODEL, bootstrap as _bootstrap_models
+
+_pre_model = DEFAULT_MODEL
+for _i, _arg in enumerate(sys.argv):
+    if _arg == '--model' and _i + 1 < len(sys.argv):
+        _pre_model = sys.argv[_i + 1]
+        break
+_bootstrap_models(_pre_model)
 
 from joint_map import (
     ALL_GROUPS,
@@ -46,6 +58,52 @@ from joint_map import (
 
 
 PROTOCOL_VERSION = 1
+
+# 机型档案：优先读部署目录，其次源码目录；读不到时用内置默认值。
+# 注意：profile.json 只提供展示元数据与能力声明，不提供 joints（joints 仍来自 joint_map）。
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PROFILE_SEARCH_DIRS = (
+    '/var/www/robot-editor',                       # .deb 部署（前端 dist 根）
+    os.path.abspath(os.path.join(_HERE, '..', '..')),  # 源码运行（仓库根）
+)
+
+_DEFAULT_PROFILE = {
+    'displayName': 'TienKung Dex',
+    'vendor': 'UBTech',
+    'backend': 'dex',
+    'capabilities': {},
+    'endEffectors': {},
+}
+
+
+def load_profile(model):
+    """读取 robot/<model>/profile.json 的 bridge 段与 assets.endEffectors。
+
+    只取展示/能力相关字段；任何读取失败都回退到内置默认值，绝不让桥接启动失败。
+    """
+    result = dict(_DEFAULT_PROFILE)
+    for base in _PROFILE_SEARCH_DIRS:
+        path = os.path.join(base, 'robot', model, 'profile.json')
+        try:
+            with open(path, 'r', encoding='utf-8') as fp:
+                profile = json.load(fp)
+        except (OSError, ValueError):
+            continue
+        bridge = profile.get('bridge') or {}
+        assets = profile.get('assets') or {}
+        if bridge.get('displayName'):
+            result['displayName'] = bridge['displayName']
+        if bridge.get('backend'):
+            result['backend'] = bridge['backend']
+        if profile.get('vendor'):
+            result['vendor'] = profile['vendor']
+        if isinstance(bridge.get('capabilities'), dict):
+            result['capabilities'] = bridge['capabilities']
+        if isinstance(assets.get('endEffectors'), dict):
+            result['endEffectors'] = assets['endEffectors']
+        return result
+    return result
+
 
 # 通道划分：控制 / 状态 / 相机使用独立固定端口。
 # 控制通道保持向后兼容（接受全部消息），状态与相机通道只读。
@@ -72,7 +130,9 @@ def parse_args(argv=None):
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--model', default='walker-tienkung-dex')
     parser.add_argument('--name', default=None)
-    parser.add_argument('--hand', default='auto', choices=['auto', 'brainco', 'inspire', 'none'])
+    # gripper 仅 Walker S2 使用（PGC 1DOF 夹爪），其余机型忽略该值
+    parser.add_argument('--hand', default='auto',
+                        choices=['auto', 'brainco', 'inspire', 'none', 'gripper'])
     parser.add_argument('--rate', type=float, default=50.0, help='关节命令下发频率 Hz')
     parser.add_argument('--telemetry-hz', type=float, default=20.0)
     parser.add_argument('--max-speed', type=float, default=1.2, help='关节目标斜坡最大角速度 rad/s')
@@ -328,6 +388,7 @@ class FakeDexRobot:
 
 class FakeHands:
     vendor = 'mock'
+    hand_type = 'mock-6'   # dry-run 通配：前端识别 mock-* 跳过末端匹配
 
     def __init__(self, logger=print):
         self.log = logger
@@ -337,6 +398,7 @@ class FakeHands:
         from joint_map import hands_joint_map
         return {
             'vendor': self.vendor,
+            'type': self.hand_type,
             'sides': {
                 side: {
                     'count': 6,
@@ -436,7 +498,8 @@ class DexBridge:
     def __init__(self, args):
         self.args = args
         self.model = args.model
-        self.name = args.name or 'TienKung Dex'
+        self.profile = load_profile(self.model)
+        self.name = args.name or self.profile['displayName']
         self.device_id = f'{self.model}-{os.getpid():x}'
         self.started_at = time.time()
         self.clients = {}  # ws -> channel（control/status/camera）
@@ -515,26 +578,16 @@ class DexBridge:
             return
 
         import rclpy
-        from dex_robot import DexRobot
-        from dex_hands import create_hands
-        from dex_camera import CameraManager
+        # 机型后端由 models/<model>/backend.py 提供，协议层保持机型无关。
+        import backend as model_backend
 
         # 必须先等网络：rclpy.init 会立刻建 DDS 参与者，网卡没 IP 时传输永久残缺。
         self._wait_for_ipv4()
 
         rclpy.init(args=None)
         self.ros_node = rclpy.create_node('robot_motion_dex_bridge')
-        self.robot = DexRobot(
-            self.ros_node,
-            rate_hz=self.args.rate,
-            max_joint_speed=self.args.max_speed,
-            spd=self.args.spd,
-            cur=self.args.cur,
-            release_after_s=self.args.release_after_s,
-            logger=self.log,
-        )
-        self.hands = create_hands(self.ros_node, self.args.hand, self.log)
-        self.cameras = CameraManager(self.ros_node, self.log)
+        self.robot, self.hands, self.cameras = model_backend.create_backends(
+            self.ros_node, self.args, self.log)
 
         # 相机回调在独立的可重入回调组里（见 dex_camera），这里必须用多线程执行器：
         # 单线程时一帧 11~35ms 的解码会直接顶掉 50Hz 的 /arm/cmd 定时器。
@@ -598,9 +651,10 @@ class DexBridge:
             'id': self.device_id,
             'name': self.name,
             'model': self.model,
-            'vendor': 'UBTech',
-            'displayName': 'TienKung Dex',
-            'adapter': 'dex',
+            'vendor': self.profile['vendor'],
+            'displayName': self.profile['displayName'],
+            'adapter': self.profile['backend'],
+            'capabilities': dict(self.profile['capabilities']),
             'channel': channel,
             'wsPort': self.args.ws_port,
             'statusPort': self.args.status_port,
@@ -883,8 +937,8 @@ class DexBridge:
             'id': self.device_id,
             'name': self.name,
             'model': self.model,
-            'displayName': 'TienKung Dex',
-            'vendor': 'UBTech',
+            'displayName': self.profile['displayName'],
+            'vendor': self.profile['vendor'],
             'ips': get_local_ips(),
             'wsPort': self.args.ws_port,
             'statusPort': self.args.status_port,

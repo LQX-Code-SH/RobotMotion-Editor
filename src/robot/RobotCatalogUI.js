@@ -8,8 +8,9 @@
 const CUSTOM_VALUE = '__custom_model__';
 
 export class RobotCatalogUI {
-    constructor({ fileHandler }) {
+    constructor({ fileHandler, onSelect = null }) {
         this.fileHandler = fileHandler;
+        this.onSelect = onSelect;   // (entry|null) 机型变体切换时通知外部（末端类型校验）
         this.entries = [];
         this.currentId = null;
         this.loading = false;
@@ -84,6 +85,7 @@ export class RobotCatalogUI {
             });
             this.currentId = entry.id;
             this.setStatus(entry.label, false);
+            this.onSelect?.(entry);
         } catch (error) {
             console.error('[robot-catalog] 机型加载失败:', error);
             this.currentId = null;
