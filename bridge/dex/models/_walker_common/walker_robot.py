@@ -3,6 +3,9 @@
 """Walker 家族关节控制（mc_task_msgs / RobotCommand + JointCmd）。
 
 按关节名寻址（control_mode=2 位置模式），非 ID 数值控制。
+周期任务与 DexRobot/ProRobot 同构：按 --rate 持续发布目标、轨迹按控制周期
+插值推进，结束/停止后按 release_after_s 自动失能。
+
 ⚠️ 真机待核对项：
 - control_mode 数值（SDK 文档 MODE_POSITION=2）
 - 末帧保持语义：C1 末帧只发一次由运控保持，S2 bridge 内部 300Hz 轨迹推进
@@ -11,6 +14,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 
@@ -38,13 +42,16 @@ class WalkerRobot:
 
         self._lock = threading.RLock()
         self._targets = {}
+        self._command = {}
         self._state = {}
         self._last_state_at = 0.0
         self._trajectory = None
         self._traj_done = None
         self._events = []
+        self._release_at = None
         self._pub = None
         self._sub = None
+        self._timer = None
 
         self._setup_io()
 
@@ -58,7 +65,10 @@ class WalkerRobot:
         self._pub = self.node.create_publisher(RobotCommand, self.topic_cmd, 10)
         self._sub = self.node.create_subscription(
             RobotState, self.topic_state, self._on_state, 10)
-        self.log(f'[walker] 命令 {self.topic_cmd} / 状态 {self.topic_state}')
+        period = 1.0 / self.rate_hz
+        self._timer = self.node.create_timer(period, self._tick)
+        self.log(f'[walker] 命令 {self.topic_cmd} / 状态 {self.topic_state}'
+                 f'（{self.rate_hz:g}Hz）')
 
     def _on_state(self, msg):
         readings = {}
@@ -92,27 +102,126 @@ class WalkerRobot:
             msg.joint_cmd.append(cmd)
         self._pub.publish(msg)
 
+    # ---------- 自动失能与轨迹 ----------
+    def _schedule_release(self):
+        self._release_at = (time.monotonic() + self.release_after_s
+                            if self.release_after_s > 0 else None)
+
+    def _release_if_due(self):
+        if self._release_at is None or time.monotonic() < self._release_at:
+            return False
+        self._release_at = None
+        self.enabled = False
+        self._trajectory = None
+        self._targets = {}
+        self._command = {}
+        self.mode = 'idle'
+        return True
+
+    def _advance_trajectory(self):
+        traj = self._trajectory
+        if traj is None:
+            return
+        frames = traj['frames']
+        if not frames:
+            self._trajectory = None
+            return
+
+        elapsed = (time.monotonic() - traj['start']) * 1000.0
+        if elapsed >= frames[-1]['t']:
+            if traj['loop']:
+                traj['start'] = time.monotonic()
+                traj['idx'] = 0
+                self._targets.update(frames[0]['targets'])
+                return
+            self._targets.update(frames[-1]['targets'])
+            traj['idx'] = len(frames)
+            self._traj_done = traj['id']
+            self._trajectory = None
+            self.mode = 'idle'
+            self._schedule_release()
+            return
+
+        idx = traj['idx']
+        while idx + 1 < len(frames) and frames[idx + 1]['t'] <= elapsed:
+            idx += 1
+        traj['idx'] = idx
+        left = frames[min(idx, len(frames) - 1)]
+        right = frames[min(idx + 1, len(frames) - 1)]
+        span = right['t'] - left['t']
+        ratio = 0.0 if span <= 0 else (elapsed - left['t']) / span
+        pose = {}
+        for name, value in left['targets'].items():
+            target = right['targets'].get(name, value)
+            pose[name] = value + (target - value) * ratio
+        self._targets.update(pose)
+
+    # ---------- 周期控制 ----------
+    def _tick(self):
+        if self.estop:
+            return
+        with self._lock:
+            self._advance_trajectory()
+            if not self.enabled:
+                return
+            if self._release_if_due():
+                self._events.append({
+                    'level': 'system',
+                    'message': f'轨迹结束静置 {self.release_after_s:g}s，已自动失能',
+                })
+                self.log('[walker] 静置超时，自动失能：停止关节保持流')
+                return
+
+            dt = 1.0 / self.rate_hz
+            max_delta = self.max_joint_speed * dt
+            ramped = {}
+            for name, target in self._targets.items():
+                entry = self.jm.BY_URDF.get(name)
+                if entry is None or entry['group'] not in self.jm.CONTROLLABLE_GROUPS:
+                    continue
+                current = self._command.get(name)
+                if current is None:
+                    state = self._state.get(name)
+                    current = state['position'] if state else target
+                delta = target - current
+                if abs(delta) <= max_delta:
+                    current = target
+                else:
+                    current += math.copysign(max_delta, delta)
+                self._command[name] = current
+                ramped[name] = current
+            self._publish(ramped)
+
     # ---------- 对外接口 ----------
     def enable(self):
         with self._lock:
             if self.estop:
                 return False, '急停激活中'
+            if not self.enabled:
+                self._targets = {}
+                self._command = {}
             self.enabled = True
+            self._release_at = None
         return True, None
 
     def disable(self):
         with self._lock:
             self.enabled = False
             self._targets.clear()
+            self._command.clear()
+            self._trajectory = None
+            self.mode = 'idle'
+            self._release_at = None
         return True
 
     def set_mode(self, mode):
         if mode not in ('idle', 'follow', 'execute'):
             return False, f'不支持的模式 {mode}'
         with self._lock:
-            if self.mode == 'execute' and mode != 'execute':
+            if mode != 'execute':
                 self._trajectory = None
             self.mode = mode
+            self._release_at = None
         return True, None
 
     def set_joint_targets(self, targets):
@@ -126,25 +235,46 @@ class WalkerRobot:
                     continue
                 self._targets[name] = self.jm.clamp(name, float(value))
                 accepted += 1
-            self._publish(self._targets)
+            self._release_at = None
+            self._tick()
         return {'accepted': accepted}
 
     def start_trajectory(self, trajectory_id, frames, fps=30, loop=False):
         if not self.enabled:
             return {'accepted': False, 'reason': '未使能'}
+        if not frames:
+            return {'accepted': False, 'reason': '轨迹为空'}
+
+        normalized = []
+        for frame in frames:
+            targets = {}
+            for name, value in (frame.get('targets') or {}).items():
+                entry = self.jm.BY_URDF.get(name)
+                if entry is None or entry['group'] not in self.jm.CONTROLLABLE_GROUPS:
+                    continue
+                targets[name] = self.jm.clamp(name, float(value))
+            if targets:
+                normalized.append({'t': float(frame.get('t', 0.0)), 'targets': targets})
+        if not normalized:
+            return {'accepted': False, 'reason': '轨迹中没有可下发关节'}
+        normalized.sort(key=lambda item: item['t'])
+
         with self._lock:
             self._trajectory = {
-                'id': trajectory_id, 'frames': frames or [], 'fps': fps,
+                'id': trajectory_id, 'frames': normalized, 'fps': fps,
                 'loop': bool(loop), 'idx': 0, 'start': time.monotonic(),
             }
             self._traj_done = None
             self.mode = 'execute'
+            self._release_at = None
+            self._tick()
         return {'accepted': True}
 
     def stop(self):
         with self._lock:
             self._trajectory = None
             self.mode = 'idle'
+            self._schedule_release()
         return True
 
     def emergency_stop(self):
@@ -152,6 +282,7 @@ class WalkerRobot:
             self.estop = True
             self.enabled = False
             self._trajectory = None
+            self._release_at = None
         self.log('[walker] 急停已触发')
 
     def get_joint_states(self):
@@ -160,7 +291,7 @@ class WalkerRobot:
 
     def snapshot_targets(self):
         with self._lock:
-            return dict(self._targets)
+            return dict(self._command)
 
     def state_age(self):
         with self._lock:
@@ -187,5 +318,8 @@ class WalkerRobot:
 
     def shutdown(self):
         self.disable()
+        if self._timer is not None and hasattr(self._timer, 'cancel'):
+            self._timer.cancel()
+        self._timer = None
         self._pub = None
         self._sub = None

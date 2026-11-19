@@ -249,22 +249,23 @@ class BackendContractTest(unittest.TestCase):
         self.assertIsNone(robot.trajectory_progress())
         self.assertEqual(robot.take_trajectory_done(), 'pro-traj')
 
-    @unittest.expectedFailure
     def test_walker_trajectory_completes(self):
-        """已知缺口：WalkerRobot 没有周期 tick，轨迹不会推进。修复后移除装饰器。"""
-        node, robot, _hands, _cameras, jm = self.make_backends('walker-s2')
-        joint = self.controllable_joint(jm)
-        robot.enable()
-        robot.start_trajectory('walker-traj', [
-            {'t': 0, 'targets': {joint: 0.0}},
-            {'t': 1, 'targets': {joint: 0.1}},
-        ])
+        for model_id in ('walker-c1', 'walker-s2'):
+            with self.subTest(model=model_id):
+                node, robot, _hands, _cameras, jm = self.make_backends(model_id)
+                joint = self.controllable_joint(jm)
+                traj_id = f'{model_id}-traj'
+                robot.enable()
+                robot.start_trajectory(traj_id, [
+                    {'t': 0, 'targets': {joint: 0.0}},
+                    {'t': 1, 'targets': {joint: 0.1}},
+                ])
 
-        time.sleep(0.01)
-        self.fire_timers(node)
+                time.sleep(0.01)
+                self.fire_timers(node)
 
-        self.assertIsNone(robot.trajectory_progress())
-        self.assertEqual(robot.take_trajectory_done(), 'walker-traj')
+                self.assertIsNone(robot.trajectory_progress())
+                self.assertEqual(robot.take_trajectory_done(), traj_id)
 
 
 if __name__ == '__main__':
