@@ -40,9 +40,14 @@ class FakeTimer:
     def __init__(self, period, callback):
         self.period = period
         self.callback = callback
+        self.cancelled = False
 
     def fire(self):
-        self.callback()
+        if not self.cancelled:
+            self.callback()
+
+    def cancel(self):
+        self.cancelled = True
 
 
 class FakeClock:
@@ -76,6 +81,19 @@ class FakeNode:
 
     def get_clock(self):
         return FakeClock()
+
+    def destroy_timer(self, timer):
+        timer.cancel()
+        if timer in self.timers:
+            self.timers.remove(timer)
+
+    def destroy_subscription(self, sub):
+        if sub in self.subscriptions:
+            self.subscriptions.remove(sub)
+
+    def destroy_publisher(self, pub):
+        if pub in self.publishers:
+            self.publishers.remove(pub)
 
 
 def install_fake_modules():
@@ -188,11 +206,19 @@ class BackendContractTest(unittest.TestCase):
                 for name in expected_camera_methods:
                     self.assertTrue(callable(getattr(cameras, name, None)), f'{model_id} cameras 缺少 {name}')
 
-    @unittest.expectedFailure
-    def test_dex_robot_has_shutdown(self):
-        """已知缺口：DexRobot 缺少 shutdown，清理路径未覆盖。修复后移除装饰器。"""
-        _node, robot, _hands, _cameras, _jm = self.make_backends('walker-tienkung-dex')
-        self.assertTrue(callable(getattr(robot, 'shutdown', None)))
+    def test_dex_robot_shutdown_releases_resources(self):
+        node, robot, _hands, _cameras, _jm = self.make_backends('walker-tienkung-dex')
+        robot.enable()
+        self.assertTrue(node.timers)
+        self.assertTrue(node.publishers)
+        self.assertTrue(node.subscriptions)
+
+        robot.shutdown()
+
+        self.assertFalse(robot.enabled)
+        self.assertEqual(node.timers, [])
+        self.assertEqual(node.publishers, [])
+        self.assertEqual(node.subscriptions, [])
 
     def test_dex_set_joint_targets_publishes_on_tick(self):
         node, robot, _hands, _cameras, jm = self.make_backends('walker-tienkung-dex')

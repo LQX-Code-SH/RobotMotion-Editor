@@ -1050,6 +1050,13 @@ def main():
             bridge.cameras.shutdown()
         if bridge.hands:
             bridge.hands.shutdown()
+        if bridge.robot:
+            shutdown_robot = getattr(bridge.robot, 'shutdown', None)
+            if callable(shutdown_robot):
+                try:
+                    shutdown_robot()
+                except Exception:
+                    pass
         if bridge.executor is not None:
             try:
                 bridge.executor.shutdown()

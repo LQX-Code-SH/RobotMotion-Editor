@@ -491,3 +491,45 @@ class DexRobot:
                 'frameIndex': traj['idx'],
                 'frameCount': len(traj['frames']),
             }
+
+    def shutdown(self):
+        """停止保持并释放 ROS timer/订阅/发布器，供协议层退出时调用。"""
+        self.disable()
+        with self._lock:
+            self._command = {}
+            self._state = {}
+
+            timer = self._timer
+            self._timer = None
+            if timer is not None:
+                destroy_timer = getattr(self.node, 'destroy_timer', None)
+                if callable(destroy_timer):
+                    try:
+                        destroy_timer(timer)
+                    except Exception as exc:
+                        self.log(f'[dex] 警告：销毁定时器失败（{exc}）')
+                elif hasattr(timer, 'cancel'):
+                    timer.cancel()
+
+            for attr in ('_state_sub', '_estop_sub'):
+                sub = getattr(self, attr, None)
+                setattr(self, attr, None)
+                if sub is None:
+                    continue
+                destroy_sub = getattr(self.node, 'destroy_subscription', None)
+                if callable(destroy_sub):
+                    try:
+                        destroy_sub(sub)
+                    except Exception as exc:
+                        self.log(f'[dex] 警告：销毁订阅失败（{exc}）')
+
+            publishers = list(self._pubs.values())
+            self._pubs.clear()
+            self._msg_cls.clear()
+            destroy_pub = getattr(self.node, 'destroy_publisher', None)
+            if callable(destroy_pub):
+                for pub in publishers:
+                    try:
+                        destroy_pub(pub)
+                    except Exception as exc:
+                        self.log(f'[dex] 警告：销毁发布器失败（{exc}）')
