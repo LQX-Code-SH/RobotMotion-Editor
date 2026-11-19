@@ -15,7 +15,9 @@ export class RobotBridgeClient {
         this.status = null;        // 最近一次 status
         this.connected = false;
         this._seq = 0;
-        this._pendingAck = new Map(); // for -> {resolve, timer}
+        this._requestSeq = 0;
+        this._generation = 0;      // 连接代际：旧 WS 回调不得写新连接状态
+        this._pendingAck = new Map(); // requestId -> {resolve, timer, type}
         this._cameraWaiters = new Set(); // 相机 ack 按 camera 精确匹配
 
         // 事件回调（由上层设置）
@@ -41,22 +43,25 @@ export class RobotBridgeClient {
     connect(url, options = {}) {
         this.close();
         this.url = url;
+        const generation = ++this._generation;
         const timeoutMs = options.timeoutMs || 8000;
 
         return new Promise((resolve, reject) => {
             let settled = false;
             let welcomeTimer = null;
+            let ws = null;
+            const isCurrent = () => generation === this._generation && ws === this.ws;
 
             const fail = (message) => {
-                if (settled) return;
+                if (settled || !isCurrent()) return;
                 settled = true;
                 clearTimeout(welcomeTimer);
-                try { this.ws?.close(); } catch { /* ignore */ }
-                this.ws = null;
+                try { ws?.close(); } catch { /* ignore */ }
+                if (this.ws === ws) this.ws = null;
+                this.connected = false;
                 reject(new Error(message));
             };
 
-            let ws;
             try {
                 ws = new WebSocket(url);
             } catch (err) {
@@ -68,12 +73,14 @@ export class RobotBridgeClient {
             welcomeTimer = setTimeout(() => fail('connection timeout: no welcome message'), timeoutMs);
 
             ws.onopen = () => {
+                if (!isCurrent()) return;
                 this.connected = true;
                 this._send({ type: 'hello' });
                 this.onOpen?.();
             };
 
             ws.onclose = (event) => {
+                if (!isCurrent()) return;
                 const wasConnected = this.connected;
                 this.connected = false;
                 this.ws = null;
@@ -82,19 +89,46 @@ export class RobotBridgeClient {
             };
 
             ws.onerror = () => {
+                if (!isCurrent()) return;
                 this.onError?.(new Error(`websocket error (${url})`));
                 if (!settled) fail(`cannot connect to ${url}`);
             };
 
             ws.onmessage = (event) => {
+                if (!isCurrent()) return;
                 let msg;
                 try { msg = JSON.parse(event.data); } catch { return; }
-                this._handleMessage(msg, resolve, () => { settled = true; clearTimeout(welcomeTimer); });
+                if (!msg || typeof msg !== 'object') return;
+
+                if (msg.type === 'welcome' && !settled) {
+                    const invalid = this._validateWelcome(msg);
+                    if (invalid) {
+                        fail(`invalid welcome: ${invalid}`);
+                        return;
+                    }
+                }
+                this._handleMessage(msg, generation, resolve, () => {
+                    if (!isCurrent()) return;
+                    settled = true;
+                    clearTimeout(welcomeTimer);
+                });
             };
         });
     }
 
-    _handleMessage(msg, connectResolve, markConnected) {
+    _validateWelcome(msg) {
+        if (msg.protocol !== 1) return `unsupported protocol ${msg.protocol}`;
+        if (typeof msg.id !== 'string' || !msg.id) return 'missing id';
+        if (typeof msg.model !== 'string' || !msg.model) return 'missing model';
+        if (!Array.isArray(msg.joints)) return 'missing joints';
+        if (msg.channel && !['control', 'status', 'camera'].includes(msg.channel)) {
+            return `unknown channel ${msg.channel}`;
+        }
+        return null;
+    }
+
+    _handleMessage(msg, generation, connectResolve, markConnected) {
+        if (generation !== this._generation) return;
         switch (msg.type) {
             case 'welcome':
                 this.welcome = msg;
@@ -114,11 +148,17 @@ export class RobotBridgeClient {
                         break;
                     }
                 }
-                const pending = this._pendingAck.get(msg.for);
-                if (pending) {
-                    clearTimeout(pending.timer);
-                    this._pendingAck.delete(msg.for);
-                    pending.resolve(msg);
+                const requestId = msg.requestId;
+                if (requestId && this._pendingAck.has(requestId)) {
+                    this._resolvePending(requestId, msg);
+                } else if (msg.for) {
+                    // 兼容旧桥接：ack 只带 for，按最早的同类型请求回填
+                    for (const [key, pending] of [...this._pendingAck]) {
+                        if (pending.type === msg.for) {
+                            this._resolvePending(key, msg);
+                            break;
+                        }
+                    }
                 }
                 break;
             }
@@ -142,6 +182,14 @@ export class RobotBridgeClient {
         this.onMessage?.(msg);
     }
 
+    _resolvePending(key, msg) {
+        const pending = this._pendingAck.get(key);
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        this._pendingAck.delete(key);
+        pending.resolve(msg);
+    }
+
     _send(obj) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(obj));
@@ -151,12 +199,13 @@ export class RobotBridgeClient {
     /** 发送指令并等待 ack。超时返回 { accepted:false, reason:'timeout' } */
     request(type, fields = {}, timeoutMs = 5000) {
         return new Promise((resolve) => {
+            const requestId = `${type}-${Date.now()}-${this._requestSeq++}`;
             const timer = setTimeout(() => {
-                this._pendingAck.delete(type);
+                this._pendingAck.delete(requestId);
                 resolve({ accepted: false, reason: 'timeout' });
             }, timeoutMs);
-            this._pendingAck.set(type, { resolve, timer });
-            this._send({ type, ...fields });
+            this._pendingAck.set(requestId, { resolve, timer, type });
+            this._send({ type, ...fields, requestId });
         });
     }
 
@@ -189,11 +238,11 @@ export class RobotBridgeClient {
     playTrajectory(frames, fps = 30, loop = false) {
         const trajectoryId = `traj-${Date.now()}-${this._seq++}`;
         return this.request('play_trajectory', { trajectoryId, frames, fps, loop }, 10000)
-            .then(ack => ({ trajectoryId, ...ack }));
+            .then(ack => ({ ...ack, trajectoryId: ack.trajectoryId || trajectoryId }));
     }
 
     /**
-     * 手部归一化目标（0..1）。高频时序下发（约 20Hz），
+     * 手部归一化目标（0~1）。高频时序下发（约 20Hz），
      * 不等 ack，避免每帧占用 request 队列；桥接仍会回 ack，无人认领即丢弃。
      */
     sendHandTargets(side, values) {
@@ -220,6 +269,7 @@ export class RobotBridgeClient {
     }
 
     close() {
+        this._generation += 1;
         if (this.ws) {
             try { this.ws.close(1000, 'client closed'); } catch { /* ignore */ }
             this.ws = null;

@@ -632,6 +632,14 @@ class DexBridge:
 
     # ---------- 消息载荷 ----------
 
+    @staticmethod
+    def _ack_payload(msg, payload):
+        """把请求的 requestId 原样回显，供前端精确匹配并发请求。"""
+        request_id = msg.get('requestId')
+        if request_id is None:
+            return payload
+        return {**payload, 'requestId': request_id}
+
     def welcome_payload(self, channel=CHANNEL_CONTROL):
         hands = self.hands.describe() if self.hands else {'vendor': 'none', 'sides': {}}
         cameras = self.cameras.describe() if (self.cameras and self.cameras.available) else []
@@ -703,9 +711,9 @@ class DexBridge:
         try:
             await ws.send(json.dumps(payload, ensure_ascii=False))
         except Exception as exc:
-            self.clients.pop(ws, None)
             # 静默吞掉发送异常会表现成"服务端在收帧、网页端收不到"，必须留痕
             self.log(f'[ws] 发送失败：{type(exc).__name__}: {exc}')
+            self._drop_client(ws)
 
     async def broadcast(self, payload, skip=None, channels=(CHANNEL_CONTROL,)):
         targets = [
@@ -719,7 +727,21 @@ class DexBridge:
             try:
                 await ws.send(data)
             except Exception:
-                self.clients.pop(ws, None)
+                self._drop_client(ws)
+
+    def _drop_client(self, ws, token=None, channel=None):
+        """统一清理连接：客户端表、相机订阅、帧背压表与控制保持。"""
+        token = id(ws) if token is None else token
+        channel = self.clients.pop(ws, channel)
+        if self.cameras:
+            try:
+                self.cameras.unsubscribe_token(token)
+            except Exception as exc:
+                self.log(f'[camera] 清理订阅失败：{exc}')
+        self._camera_pending.pop(ws, None)
+        self._camera_dropped.pop(ws, None)
+        if channel == CHANNEL_CONTROL:
+            self._release_when_no_control_client()
 
     def handler_for(self, channel):
         """为指定通道生成 websockets 处理函数。"""
@@ -738,6 +760,10 @@ class DexBridge:
                 try:
                     msg = json.loads(raw)
                 except Exception:
+                    continue
+                if not isinstance(msg, dict):
+                    await self.send(ws, {'type': 'error', 'code': 'bad_message',
+                                         'message': 'message must be a JSON object'})
                     continue
                 kind = msg.get('type')
                 allowed = None
@@ -760,13 +786,7 @@ class DexBridge:
         except Exception:
             pass
         finally:
-            self.clients.pop(ws, None)
-            if self.cameras:
-                self.cameras.unsubscribe_token(token)
-            if channel == CHANNEL_CONTROL:
-                self._release_when_no_control_client()
-            self._camera_pending.pop(ws, None)
-            self._camera_dropped.pop(ws, None)
+            self._drop_client(ws, token, channel)
             self.log(f'[ws] 客户端断开（当前 {len(self.clients)}）')
 
     def _release_when_no_control_client(self):
@@ -819,75 +839,90 @@ class DexBridge:
     async def handle(self, ws, token, msg):
         kind = msg.get('type')
 
+        async def send_ack(payload):
+            await self.send(ws, self._ack_payload(msg, payload))
+
+        async def broadcast_ack(payload):
+            await self.broadcast(self._ack_payload(msg, payload))
+
         if kind in ('hello', 'get_status'):
-            await self.send(ws, self.welcome_payload() if kind == 'hello' else self.status_payload())
+            if kind == 'hello':
+                channel = self.clients.get(ws, CHANNEL_CONTROL)
+                await self.send(ws, self.welcome_payload(channel))
+            else:
+                await self.send(ws, self.status_payload())
             return
 
         if kind == 'set_mode':
             ok, reason = self.robot.set_mode(msg.get('mode'))
             if not ok:
-                await self.send(ws, {'type': 'error', 'code': 'bad_mode', 'message': reason})
+                await send_ack({'type': 'error', 'code': 'bad_mode', 'message': reason})
             else:
-                await self.broadcast({'type': 'ack', 'for': 'set_mode', 'accepted': True,
-                                      'mode': msg.get('mode')})
+                await broadcast_ack({'type': 'ack', 'for': 'set_mode', 'accepted': True,
+                                     'mode': msg.get('mode')})
             return
 
         if kind == 'enable':
             ok, reason = self.robot.enable()
-            await self.broadcast({'type': 'ack', 'for': 'enable', 'accepted': ok, 'reason': reason or None})
+            await broadcast_ack({'type': 'ack', 'for': 'enable', 'accepted': ok,
+                                 'reason': reason or None})
             return
 
         if kind == 'disable':
             self.robot.disable()
-            await self.broadcast({'type': 'ack', 'for': 'disable', 'accepted': True})
+            await broadcast_ack({'type': 'ack', 'for': 'disable', 'accepted': True})
             return
 
         if kind == 'joint_targets':
             if self.robot is not None and self.robot.mode != 'follow':
-                await self.send(ws, {'type': 'error', 'code': 'wrong_mode',
-                                     'message': '请先切换到 follow 模式'})
+                await send_ack({'type': 'error', 'code': 'wrong_mode',
+                                'message': '请先切换到 follow 模式'})
                 return
             result = self.robot.set_joint_targets(msg.get('targets') or {})
-            await self.send(ws, {'type': 'ack', 'for': 'joint_targets', **result})
+            await send_ack({'type': 'ack', 'for': 'joint_targets', **result})
             return
 
         if kind == 'play_trajectory':
+            trajectory_id = msg.get('trajectoryId') or f'traj-{int(time.time() * 1000)}'
             result = self.robot.start_trajectory(
-                msg.get('trajectoryId') or f'traj-{int(time.time() * 1000)}',
+                trajectory_id,
                 msg.get('frames') or [],
                 msg.get('fps') or 30,
                 bool(msg.get('loop')),
             )
-            await self.send(ws, {'type': 'ack', 'for': 'play_trajectory',
-                                  'trajectoryId': msg.get('trajectoryId'), **result})
+            await send_ack({'type': 'ack', 'for': 'play_trajectory', **result,
+                            'trajectoryId': trajectory_id})
             return
 
         if kind == 'stop':
             self.robot.stop()
-            await self.broadcast({'type': 'ack', 'for': 'stop', 'accepted': True})
+            await broadcast_ack({'type': 'ack', 'for': 'stop', 'accepted': True})
             return
 
         if kind == 'estop':
             self.robot.emergency_stop()
-            await self.broadcast({'type': 'ack', 'for': 'estop', 'accepted': True})
+            await broadcast_ack({'type': 'ack', 'for': 'estop', 'accepted': True})
             return
 
         if kind == 'hand_targets':
             side = msg.get('side')
             ok = bool(self.hands and side in ('left', 'right') and
                       self.hands.set_normalized(side, msg.get('values') or []))
-            await self.send(ws, {'type': 'ack', 'for': 'hand_targets', 'side': side,
-                                 'accepted': ok, 'reason': None if ok else '手部不可用'})
+            await send_ack({'type': 'ack', 'for': 'hand_targets', 'side': side,
+                            'accepted': ok, 'reason': None if ok else '手部不可用'})
             return
 
         if kind == 'hand_clear_error':
             side = msg.get('side')
             ok = bool(self.hands and self.hands.clear_error(side))
-            await self.send(ws, {'type': 'ack', 'for': 'hand_clear_error', 'side': side, 'accepted': ok})
+            await send_ack({'type': 'ack', 'for': 'hand_clear_error', 'side': side,
+                            'accepted': ok})
             return
 
         if kind == 'camera_list':
-            await self.send(ws, {'type': 'cameras', 'cameras': self.welcome_payload()['cameras']})
+            channel = self.clients.get(ws, CHANNEL_CONTROL)
+            await send_ack({'type': 'cameras',
+                            'cameras': self.welcome_payload(channel)['cameras']})
             return
 
         if kind == 'camera_subscribe':
@@ -903,20 +938,20 @@ class DexBridge:
                 self._push_camera_frame(ws, payload)
 
             ok, reason = self.cameras.subscribe(camera, token, fps, on_frame)
-            await self.send(ws, {'type': 'ack', 'for': 'camera_subscribe',
-                                 'camera': camera, 'accepted': ok, 'reason': reason or None,
-                                 **self.cameras.info(camera)})
+            await send_ack({'type': 'ack', 'for': 'camera_subscribe',
+                            'camera': camera, 'accepted': ok, 'reason': reason or None,
+                            **self.cameras.info(camera)})
             return
 
         if kind == 'camera_unsubscribe':
             camera = msg.get('camera')
             self.cameras.unsubscribe(camera, token)
-            await self.send(ws, {'type': 'ack', 'for': 'camera_unsubscribe',
-                                 'camera': camera, 'accepted': True})
+            await send_ack({'type': 'ack', 'for': 'camera_unsubscribe',
+                            'camera': camera, 'accepted': True})
             return
 
-        await self.send(ws, {'type': 'error', 'code': 'unknown_type',
-                             'message': f'未知消息类型 {kind}'})
+        await send_ack({'type': 'error', 'code': 'unknown_type',
+                        'message': f'未知消息类型 {kind}'})
 
     async def telemetry_loop(self):
         interval = 1.0 / max(1.0, self.args.telemetry_hz)

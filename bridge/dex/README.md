@@ -186,6 +186,9 @@ SDK 关节与 URDF 命名不同，映射表见 [`models/tienkung_dex/joint_map.p
 | R→C | `cameras` | `cameras: [{id, topic, type}]` | 相机列表 |
 | R→C | `camera_frame` | `camera, format:'jpeg', width, height, stamp, bytes, data(base64)` | 视频帧 |
 
+所有 C→R 请求可带 `requestId`，`ack` / `error` 会原样回显，前端按它精确匹配并发请求；
+旧客户端没有 `requestId` 时仍按 `for` 兼容。`hello` 的 `welcome.channel` 会回显当前连接通道。
+
 `welcome` 额外字段：`controllableGroups`、`legLocked`、`hands`（vendor/count/names/jointMap）、
 `cameras`。`status` 额外字段：`estop`、`hands`（各手归一化数值与名称）。
 

@@ -12,8 +12,6 @@
 
 from __future__ import annotations
 
-import joint_map
-
 
 class _NoCamera:
     available = False
@@ -86,6 +84,7 @@ class _GripperHands:
 
 
 def create_backends(node, args, log=print):
+    import joint_map
     from models._walker_common.walker_robot import WalkerRobot
     from models._walker_common.walker_hands import WalkerHands
 
