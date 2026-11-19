@@ -238,7 +238,9 @@ SDK 常量层手部差异更大：`L_thumb_cmp_joint` ↔ SDK `left_thumb_swing`
 
 `hands.type` 由**桥接后端的 `describe()` 直接返回**，后端知道自己实现的协议类型。核实当前代码：
 
-```139:141:bridge/dex/dex_hands.py
+`bridge/dex/models/tienkung_dex/dex_hands.py`：
+
+```python
     def describe(self):
         return {
             'vendor': self.vendor,

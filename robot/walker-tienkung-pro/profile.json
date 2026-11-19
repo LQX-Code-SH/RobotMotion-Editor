@@ -408,7 +408,12 @@
     "urdf": "model/tienkung_pro_with_hands.urdf",
     "meshes": "model/meshes/",
     "variants": [
-      "model/tienkung_pro_with_hands.urdf"
+      {
+        "path": "model/tienkung_pro_with_hands.urdf",
+        "endEffector": "hands",
+        "endEffectorTypes": ["pro-6-norm"],
+        "default": true
+      }
     ],
     "endEffectors": {
       "pro-6-norm": {

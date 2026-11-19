@@ -1,0 +1,12 @@
+{
+  "id": "new-model-id",
+  "displayName": "New Model",
+  "backend": "models.new_model.backend",
+  "jointMap": "models.new_model.joint_map",
+  "capabilities": {
+    "camera": false,
+    "trajectory": true,
+    "hands": true,
+    "releaseAfterS": true
+  }
+}

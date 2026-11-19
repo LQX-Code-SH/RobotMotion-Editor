@@ -1,0 +1,12 @@
+{
+  "id": "walker-c1",
+  "displayName": "Walker C1",
+  "backend": "models.walker_c1.backend",
+  "jointMap": "models.walker_c1.joint_map",
+  "capabilities": {
+    "camera": false,
+    "trajectory": true,
+    "hands": true,
+    "releaseAfterS": true
+  }
+}

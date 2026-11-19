@@ -10,16 +10,24 @@
 bridge/dex/
   dex_bridge.py              # 协议层入口（WS / UDP / 消息路由），机型无关
   models/
-    __init__.py              # 机型注册表：model → 目录
+    __init__.py              # 兼容导出：MODEL_DIRS / model_dir / bootstrap
+    discovery.py             # 自动扫描机型目录，不再手工维护注册表
+    model.json 每个机型一份  # 声明 id / backend / jointMap / capabilities
     tienkung_dex/            # 天工 Dex（已打通）：joint_map / dex_robot / dex_hands / dex_camera / backend
     tienkung_pro/            # 天工 Pro（骨架已备，真机待核对）
     walker_s2/               # Walker S2（骨架已备，真机待核对）
     walker_c1/               # Walker C1（骨架已备，真机待核对）
     _walker_common/          # Walker 家族共享的关节/手后端
+    common/                  # 跨机型通用后端预留目录
+    _template/               # 新增机型复制模板
 ```
 
 `dex_bridge.py` 按 `--model` 注入对应机型目录到 `sys.path`，并调用该目录 `backend.create_backends()`
-创建 `(robot, hands, cameras)`。协议层不含任何机型专属逻辑。新增机型见
+创建 `(robot, hands, cameras)`。协议层不含任何机型专属逻辑。
+
+新增机型无需改协议层：复制 `models/_template/` 与 `robot/_template/`，填写 `model.json`
+和 `profile.json`，运行 `pnpm run robot:index` 与 `pnpm test`；`models/discovery.py`
+会自动发现新目录。未知 `--model` 会直接报错并列出可用机型。详细适配见
 `docs/multi-robot-adaptation.md`。
 
 以下环境要求与运行说明以 **TienKung Dex** 为准；其他机型的 ROS2 版本/消息包见方案文档。
@@ -100,7 +108,7 @@ python3 dex_bridge.py --dry-run
 
 ## 关节映射
 
-SDK 关节与 URDF 命名不同，映射表见 [`joint_map.py`](joint_map.py)：
+SDK 关节与 URDF 命名不同，映射表见 [`models/tienkung_dex/joint_map.py`](models/tienkung_dex/joint_map.py)：
 
 | SDK ID | SDK 名称 | URDF 关节名 | 组 |
 |---|---|---|---|

@@ -495,9 +495,22 @@
     "urdf": "model/urdf/tienkung_dex_inspire.urdf",
     "meshes": "model/meshes/",
     "variants": [
-      "model/urdf/tienkung_dex_base.urdf",
-      "model/urdf/tienkung_dex_brainco.urdf",
-      "model/urdf/tienkung_dex_inspire.urdf"
+      {
+        "path": "model/urdf/tienkung_dex_base.urdf",
+        "endEffector": "none",
+        "endEffectorTypes": []
+      },
+      {
+        "path": "model/urdf/tienkung_dex_brainco.urdf",
+        "endEffector": "brainco",
+        "endEffectorTypes": ["brainco-6-raw"]
+      },
+      {
+        "path": "model/urdf/tienkung_dex_inspire.urdf",
+        "endEffector": "inspire",
+        "endEffectorTypes": ["inspire-13-code"],
+        "default": true
+      }
     ],
     "endEffectors": {
       "inspire-13-code": {

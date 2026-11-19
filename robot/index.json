@@ -22,9 +22,7 @@
       "endEffector": "none",
       "urdf": "robot/walker-c1/model/urdf/walker_c1.urdf",
       "default": false,
-      "endEffectorTypes": [
-        "walker-6-mcp"
-      ]
+      "endEffectorTypes": []
     },
     {
       "id": "walker-s2-clamp",
@@ -34,10 +32,7 @@
       "endEffector": "clamp",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_clamp.urdf",
       "default": false,
-      "endEffectorTypes": [
-        "walker-6-mcp",
-        "pgc-gripper"
-      ]
+      "endEffectorTypes": []
     },
     {
       "id": "walker-s2-gripper",
@@ -48,7 +43,6 @@
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_gripper.urdf",
       "default": false,
       "endEffectorTypes": [
-        "walker-6-mcp",
         "pgc-gripper"
       ]
     },
@@ -61,8 +55,7 @@
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v3.urdf",
       "default": false,
       "endEffectorTypes": [
-        "walker-6-mcp",
-        "pgc-gripper"
+        "walker-6-mcp"
       ]
     },
     {
@@ -74,8 +67,7 @@
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_hand_v4.urdf",
       "default": true,
       "endEffectorTypes": [
-        "walker-6-mcp",
-        "pgc-gripper"
+        "walker-6-mcp"
       ]
     },
     {
@@ -86,10 +78,7 @@
       "endEffector": "noactuator",
       "urdf": "robot/walker-s2/model/urdf/s2_v1_simple_noactuator.urdf",
       "default": false,
-      "endEffectorTypes": [
-        "walker-6-mcp",
-        "pgc-gripper"
-      ]
+      "endEffectorTypes": []
     },
     {
       "id": "walker-tienkung-dex-brainco",
@@ -100,7 +89,6 @@
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_brainco.urdf",
       "default": false,
       "endEffectorTypes": [
-        "inspire-13-code",
         "brainco-6-raw"
       ]
     },
@@ -113,8 +101,7 @@
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_inspire.urdf",
       "default": true,
       "endEffectorTypes": [
-        "inspire-13-code",
-        "brainco-6-raw"
+        "inspire-13-code"
       ]
     },
     {
@@ -125,10 +112,7 @@
       "endEffector": "none",
       "urdf": "robot/walker-tienkung-dex/model/urdf/tienkung_dex_base.urdf",
       "default": false,
-      "endEffectorTypes": [
-        "inspire-13-code",
-        "brainco-6-raw"
-      ]
+      "endEffectorTypes": []
     },
     {
       "id": "walker-tienkung-pro-hands",

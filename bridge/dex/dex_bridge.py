@@ -46,6 +46,9 @@ for _i, _arg in enumerate(sys.argv):
     if _arg == '--model' and _i + 1 < len(sys.argv):
         _pre_model = sys.argv[_i + 1]
         break
+    if _arg.startswith('--model='):
+        _pre_model = _arg.split('=', 1)[1]
+        break
 _bootstrap_models(_pre_model)
 
 from joint_map import (
@@ -128,7 +131,9 @@ def parse_args(argv=None):
     parser.add_argument('--camera-port', type=int, default=8083, help='相机通道端口（只读推流，0=禁用）')
     parser.add_argument('--beacon-port', type=int, default=45678)
     parser.add_argument('--host', default='0.0.0.0')
-    parser.add_argument('--model', default='walker-tienkung-dex')
+    parser.add_argument('--model', default=DEFAULT_MODEL,
+                        choices=sorted(MODEL_DIRS),
+                        help='机型 ID（可选：%(choices)s）')
     parser.add_argument('--name', default=None)
     # gripper 仅 Walker S2 使用（PGC 1DOF 夹爪），其余机型忽略该值
     parser.add_argument('--hand', default='auto',

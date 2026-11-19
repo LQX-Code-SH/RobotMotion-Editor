@@ -41,6 +41,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check robot index
+        run: node scripts/generate-robot-index.mjs --check
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Check Python sources
+        run: python3 -m compileall -q bridge/dex
+
       - name: Build project
         run: pnpm run build
 

@@ -1,0 +1,12 @@
+{
+  "id": "walker-tienkung-pro",
+  "displayName": "Walker TienKung Pro",
+  "backend": "models.tienkung_pro.backend",
+  "jointMap": "models.tienkung_pro.joint_map",
+  "capabilities": {
+    "camera": false,
+    "trajectory": true,
+    "hands": true,
+    "releaseAfterS": true
+  }
+}

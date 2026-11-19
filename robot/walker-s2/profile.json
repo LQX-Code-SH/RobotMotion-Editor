@@ -394,11 +394,32 @@
     "urdf": "model/urdf/s2_v1_simple_hand_v4.urdf",
     "meshes": "model/meshes/",
     "variants": [
-      "model/urdf/s2_v1_simple_clamp.urdf",
-      "model/urdf/s2_v1_simple_gripper.urdf",
-      "model/urdf/s2_v1_simple_hand_v3.urdf",
-      "model/urdf/s2_v1_simple_hand_v4.urdf",
-      "model/urdf/s2_v1_simple_noactuator.urdf"
+      {
+        "path": "model/urdf/s2_v1_simple_clamp.urdf",
+        "endEffector": "clamp",
+        "endEffectorTypes": []
+      },
+      {
+        "path": "model/urdf/s2_v1_simple_gripper.urdf",
+        "endEffector": "gripper",
+        "endEffectorTypes": ["pgc-gripper"]
+      },
+      {
+        "path": "model/urdf/s2_v1_simple_hand_v3.urdf",
+        "endEffector": "hand_v3",
+        "endEffectorTypes": ["walker-6-mcp"]
+      },
+      {
+        "path": "model/urdf/s2_v1_simple_hand_v4.urdf",
+        "endEffector": "hand_v4",
+        "endEffectorTypes": ["walker-6-mcp"],
+        "default": true
+      },
+      {
+        "path": "model/urdf/s2_v1_simple_noactuator.urdf",
+        "endEffector": "noactuator",
+        "endEffectorTypes": []
+      }
     ],
     "endEffectors": {
       "walker-6-mcp": {

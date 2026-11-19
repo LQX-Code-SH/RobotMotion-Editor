@@ -1,0 +1,37 @@
+{
+  "_comment": "新机型档案模板。model 必须与 bridge/dex/models/<目录>/model.json 的 id 一致。",
+  "model": "new-model-id",
+  "vendor": "",
+  "displayName": "New Model",
+  "joints": [],
+  "bridge": {
+    "adapter": "mock",
+    "backend": "new_model",
+    "displayName": "New Model",
+    "wsPort": 8081,
+    "beaconPort": 45678,
+    "protocol": 1,
+    "capabilities": {
+      "jointGroups": ["arm", "head", "waist"],
+      "trajectory": true,
+      "hands": true,
+      "cameras": 0,
+      "estop": true,
+      "legLocked": true,
+      "releaseAfterS": 5
+    }
+  },
+  "assets": {
+    "urdf": "model/urdf/new_model.urdf",
+    "meshes": "model/meshes/",
+    "variants": [
+      {
+        "path": "model/urdf/new_model.urdf",
+        "endEffector": "none",
+        "endEffectorTypes": [],
+        "default": true
+      }
+    ],
+    "endEffectors": {}
+  }
+}

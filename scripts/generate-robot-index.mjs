@@ -3,9 +3,14 @@
  * 扫描 robot/<机型>/ 目录下的机型档案与 URDF 变体，生成 robot/index.json。
  * 网页端"机型预览"下拉列表读取该索引切换模型。
  *
- * 变体标识规则："机器人型号-末端执行器"，例如 walker-tienkung-dex-inspire
+ * 变体必须在 profile.assets.variants 中声明：
+ *   { path, endEffector, endEffectorTypes?, default? }
+ * 字符串变体作为旧格式兼容：末端类型从 endEffectors[*].urdf 或
+ * noEndEffectorUrdfs 推导，不再按机型名硬编码。
  *
- * 用法：node scripts/generate-robot-index.mjs（或 pnpm run robot:index）
+ * 用法：
+ *   node scripts/generate-robot-index.mjs             # 生成
+ *   node scripts/generate-robot-index.mjs --check     # 仅校验是否已同步
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
@@ -13,75 +18,69 @@ import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROBOT_DIR = join(ROOT, 'robot');
+const INDEX_PATH = join(ROBOT_DIR, 'index.json');
+const CHECK_ONLY = process.argv.includes('--check');
 
-/** 从 URDF 文件名推断末端执行器类型，返回 null 表示不是完整机器人模型（如手部独立 URDF） */
-function endEffectorOf(model, fileName) {
-    const name = fileName.replace(/\.urdf$/i, '').toLowerCase();
+/** 从 profile 声明中推导旧字符串变体的末端类型（无机型硬编码） */
+function endEffectorFromProfile(profile, path) {
+    const entries = Object.entries(profile.assets?.endEffectors || {});
+    const fileName = path.split('/').pop();
 
-    if (model === 'walker-s2') {
-        const match = name.match(/^s2_v1_simple_(.+)$/);
-        if (match) return match[1];
-        return null;
+    for (const [type, def] of entries) {
+        if (def?.urdf === path) return type;
+        if (typeof def?.urdf === 'string' && def.urdf.split('/').pop() === fileName) return type;
     }
 
-    if (model === 'walker-c1') {
-        if (name.includes('with_hands')) return 'hands';
-        if (name === 'walker_c1') return 'none';
-        return null;
-    }
-
-    if (model === 'walker-tienkung-pro') {
-        if (name.includes('with_hands')) return 'hands';
-        return null;
-    }
-
-    if (model === 'walker-tienkung-dex') {
-        const match = name.match(/^tienkung_dex_(.+)$/);
-        if (match) return match[1] === 'base' ? 'none' : match[1];
-        return null;
-    }
-
+    if ((profile.assets?.noEndEffectorUrdfs || []).includes(path)) return 'none';
     return null;
+}
+
+/**
+ * 解析一个变体条目，返回 { path, endEffector, endEffectorTypes, default } 或 null。
+ */
+function resolveVariant(profile, variant) {
+    const profileTypes = Object.keys(profile.assets?.endEffectors || {});
+
+    if (variant && typeof variant === 'object') {
+        const path = variant.path;
+        const endEffector = variant.endEffector;
+        if (!path || !endEffector) return null;
+        return {
+            path,
+            endEffector,
+            endEffectorTypes: Array.isArray(variant.endEffectorTypes)
+                ? variant.endEffectorTypes
+                : profileTypes,
+            default: variant.default === true,
+        };
+    }
+
+    if (typeof variant !== 'string') return null;
+    const endEffector = endEffectorFromProfile(profile, variant);
+    if (!endEffector) return null;
+    return {
+        path: variant,
+        endEffector,
+        endEffectorTypes: profileTypes,
+        default: variant === profile.assets?.urdf,
+    };
 }
 
 const robots = [];
 
-/**
- * 解析一个变体条目，返回 { path, endEffector } 或 null。
- * 新格式：{ path, endEffector }（末端类型由 profile 显式声明）
- * 旧格式：字符串（回退到 endEffectorOf() 的文件名启发式）
- */
-function resolveVariant(model, variant) {
-    if (variant && typeof variant === 'object') {
-        const path = variant.path;
-        const endEffector = variant.endEffector;
-        if (!path || !endEffector || endEffector === 'none') return null;
-        return { path, endEffector };
-    }
-    if (typeof variant !== 'string') return null;
-    const fileName = variant.split('/').pop();
-    const endEffector = endEffectorOf(model, fileName);
-    return endEffector ? { path: variant, endEffector } : null;
-}
-
 for (const entry of readdirSync(ROBOT_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
     const model = entry.name;
     const profilePath = join(ROBOT_DIR, model, 'profile.json');
     if (!existsSync(profilePath)) continue;
 
     const profile = JSON.parse(readFileSync(profilePath, 'utf-8'));
-
     const variants = profile.assets?.variants?.length
         ? profile.assets.variants
         : (profile.assets?.urdf ? [profile.assets.urdf] : []);
 
-    // 该机型支持的末端协议类型清单（welcome.hands.type 的合法值集合）。
-    // additive 字段：旧版前端忽略它，不影响现有行为。
-    const endEffectorTypes = Object.keys(profile.assets?.endEffectors || {});
-
     for (const variant of variants) {
-        const resolved = resolveVariant(model, variant);
+        const resolved = resolveVariant(profile, variant);
         if (!resolved) continue;
 
         robots.push({
@@ -91,20 +90,34 @@ for (const entry of readdirSync(ROBOT_DIR, { withFileTypes: true })) {
             displayName: profile.displayName || model,
             endEffector: resolved.endEffector,
             urdf: `robot/${model}/${resolved.path}`,
-            default: resolved.path === profile.assets?.urdf,
-            endEffectorTypes
+            default: resolved.default || resolved.path === profile.assets?.urdf,
+            endEffectorTypes: resolved.endEffectorTypes,
         });
     }
 }
 
-robots.sort((a, b) => (a.model === b.model ? a.endEffector.localeCompare(b.endEffector) : a.model.localeCompare(b.model)));
+robots.sort((a, b) => (a.model === b.model
+    ? a.endEffector.localeCompare(b.endEffector)
+    : a.model.localeCompare(b.model)));
 
 const index = {
     version: 1,
     generatedBy: 'scripts/generate-robot-index.mjs',
-    robots
+    robots,
 };
 
-writeFileSync(join(ROBOT_DIR, 'index.json'), JSON.stringify(index, null, 2) + '\n');
-console.log(`robot/index.json 已生成：${robots.length} 个机型变体`);
-robots.forEach(r => console.log(`  ${r.default ? '*' : ' '} ${r.id}`));
+const output = JSON.stringify(index, null, 2) + '\n';
+
+if (CHECK_ONLY) {
+    const current = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, 'utf-8') : '';
+    if (current !== output) {
+        console.error('robot/index.json 与 robot/*/profile.json 不一致，请执行 pnpm run robot:index');
+        process.exitCode = 1;
+    } else {
+        console.log(`robot/index.json 检查通过：${robots.length} 个机型变体`);
+    }
+} else {
+    writeFileSync(INDEX_PATH, output);
+    console.log(`robot/index.json 已生成：${robots.length} 个机型变体`);
+    robots.forEach(r => console.log(`  ${r.default ? '*' : ' '} ${r.id}`));
+}

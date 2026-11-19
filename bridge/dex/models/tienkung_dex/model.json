@@ -1,0 +1,12 @@
+{
+  "id": "walker-tienkung-dex",
+  "displayName": "Walker TienKung Dex",
+  "backend": "models.tienkung_dex.backend",
+  "jointMap": "models.tienkung_dex.joint_map",
+  "capabilities": {
+    "camera": true,
+    "trajectory": true,
+    "hands": true,
+    "releaseAfterS": true
+  }
+}

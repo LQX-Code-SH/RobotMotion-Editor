@@ -1,0 +1,12 @@
+{
+  "id": "walker-s2",
+  "displayName": "Walker S2",
+  "backend": "models.walker_s2.backend",
+  "jointMap": "models.walker_s2.joint_map",
+  "capabilities": {
+    "camera": false,
+    "trajectory": true,
+    "hands": true,
+    "releaseAfterS": true
+  }
+}

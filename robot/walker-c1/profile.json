@@ -401,10 +401,17 @@
     "urdf": "model/urdf/walker_c1_with_hands.urdf",
     "meshes": "model/meshes/",
     "variants": [
-      "model/urdf/ubt_left_hand_v3_lite.urdf",
-      "model/urdf/ubt_right_hand_v3_lite.urdf",
-      "model/urdf/walker_c1.urdf",
-      "model/urdf/walker_c1_with_hands.urdf"
+      {
+        "path": "model/urdf/walker_c1.urdf",
+        "endEffector": "none",
+        "endEffectorTypes": []
+      },
+      {
+        "path": "model/urdf/walker_c1_with_hands.urdf",
+        "endEffector": "hands",
+        "endEffectorTypes": ["walker-6-mcp"],
+        "default": true
+      }
     ],
     "endEffectors": {
       "walker-6-mcp": {
