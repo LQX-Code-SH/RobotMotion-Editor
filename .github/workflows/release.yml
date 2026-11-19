@@ -50,6 +50,9 @@ jobs:
       - name: Check Python sources
         run: python3 -m compileall -q bridge/dex
 
+      - name: Run backend contract tests
+        run: python3 -m unittest discover -s tests/python
+
       - name: Build project
         run: pnpm run build
 

@@ -52,6 +52,12 @@ class BaseHands:
         self._pubs.clear()
         self._subs.clear()
 
+    def set_normalized(self, side, values):
+        return False
+
+    def clear_error(self, side):
+        return False
+
 
 class ProHands(BaseHands):
     vendor = 'inspire'

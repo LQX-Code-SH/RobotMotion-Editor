@@ -37,6 +37,7 @@ def bootstrap(model: str) -> str:
 
     here = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(here, dirname)
-    if path not in sys.path:
-        sys.path.insert(0, path)
+    if path in sys.path:
+        sys.path.remove(path)
+    sys.path.insert(0, path)
     return path
