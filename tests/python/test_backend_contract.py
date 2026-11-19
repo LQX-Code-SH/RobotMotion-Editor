@@ -149,17 +149,16 @@ class BackendContractTest(unittest.TestCase):
         if str(DEX_DIR) not in sys.path:
             sys.path.insert(0, str(DEX_DIR))
         cls.models = importlib.import_module('models')
+        cls.contracts = importlib.import_module('models.contracts')
         cls.backends = {}
         for model_id, dirname in cls.models.MODEL_DIRS.items():
             cls.models.bootstrap(model_id)
             cls.backends[model_id] = importlib.import_module(f'models.{dirname}.backend')
 
     def make_backends(self, model_id, hand='none'):
-        # 生产进程只加载一个机型；测试需清理扁平模块缓存以模拟独立进程。
-        for name in ('joint_map', 'dex_robot', 'dex_hands', 'dex_camera', 'pro_robot', 'pro_hands'):
-            sys.modules.pop(name, None)
-        self.models.bootstrap(model_id)
-        import joint_map as jm
+        # 显式包导入，不依赖 sys.path，也不存在跨机型扁平模块缓存。
+        dirname = self.models.model_dir(model_id)
+        jm = importlib.import_module(f'models.{dirname}.joint_map')
 
         node = FakeNode()
         args = SimpleNamespace(
@@ -171,9 +170,10 @@ class BackendContractTest(unittest.TestCase):
             hand=hand,
             dry_run=False,
         )
-        robot, hands, cameras = self.backends[model_id].create_backends(
+        bundle = self.backends[model_id].create_backends(
             node, args, lambda *_args, **_kwargs: None)
-        return node, robot, hands, cameras, jm
+        self.assertIsInstance(bundle, self.contracts.BackendBundle)
+        return node, bundle.robot, bundle.hands, bundle.cameras, jm
 
     @staticmethod
     def fire_timers(node):
@@ -199,6 +199,9 @@ class BackendContractTest(unittest.TestCase):
         for model_id in self.backends:
             with self.subTest(model=model_id):
                 _node, robot, hands, cameras, _jm = self.make_backends(model_id)
+                self.assertIsInstance(robot, self.contracts.RobotBackend)
+                self.assertIsInstance(hands, self.contracts.HandsBackend)
+                self.assertIsInstance(cameras, self.contracts.CameraBackend)
                 for name in expected_robot_methods:
                     self.assertTrue(callable(getattr(robot, name, None)), f'{model_id} robot 缺少 {name}')
                 for name in expected_hands_methods:

@@ -23,7 +23,7 @@ import math
 import threading
 import time
 
-from joint_map import (
+from .joint_map import (
     CONTROLLABLE_GROUPS,
     BY_GROUP_ID,
     BY_URDF,

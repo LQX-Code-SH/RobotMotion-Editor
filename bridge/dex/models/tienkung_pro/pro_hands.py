@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import threading
 
-from joint_map import hands_joint_map
+from .joint_map import hands_joint_map
 
 CHANNELS = 6
 

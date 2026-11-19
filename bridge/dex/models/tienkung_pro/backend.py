@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from models.contracts import BackendBundle
+
 
 class _NoCamera:
     """Pro 相机待适配：当前禁用，不阻断桥接启动。"""
@@ -28,9 +30,9 @@ class _NoCamera:
         pass
 
 
-def create_backends(node, args, log=print):
-    from pro_robot import ProRobot
-    from pro_hands import create_hands
+def create_backends(node, args, log=print) -> BackendBundle:
+    from .pro_robot import ProRobot
+    from .pro_hands import create_hands
 
     robot = ProRobot(
         node,
@@ -42,4 +44,4 @@ def create_backends(node, args, log=print):
         logger=log,
     )
     hands = create_hands(node, args.hand, log)
-    return robot, hands, _NoCamera()
+    return BackendBundle(robot, hands, _NoCamera())

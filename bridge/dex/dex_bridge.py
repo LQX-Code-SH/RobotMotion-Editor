@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import math
 import os
@@ -37,9 +38,10 @@ import sys
 import threading
 import time
 
-# 机型适配目录：在 import joint_map 之前，根据 --model 注入对应机型目录到 sys.path。
-# 预扫描 argv 只取 --model 的值；完整参数解析仍在 parse_args() 中完成。
-from models import MODEL_DIRS, DEFAULT_MODEL, bootstrap as _bootstrap_models
+# 机型适配：预扫描 argv 只取 --model 的值；完整参数解析仍在 parse_args() 中完成。
+# 机型模块通过 models.<机型>.* 显式包导入，sys.path 注入仅作为兼容旧模块的兜底。
+from models import MODEL_DIRS, DEFAULT_MODEL, bootstrap as _bootstrap_models, model_dir
+from models.contracts import BackendBundle
 
 _pre_model = DEFAULT_MODEL
 for _i, _arg in enumerate(sys.argv):
@@ -49,15 +51,19 @@ for _i, _arg in enumerate(sys.argv):
     if _arg.startswith('--model='):
         _pre_model = _arg.split('=', 1)[1]
         break
-_bootstrap_models(_pre_model)
 
-from joint_map import (
-    ALL_GROUPS,
-    CONTROLLABLE_GROUPS,
-    JOINT_TABLE,
-    clamp,
-    urdf_joint_names,
-)
+_model_dirname = model_dir(_pre_model)
+if _model_dirname is None:
+    available = ', '.join(sorted(MODEL_DIRS)) or '(无)'
+    raise SystemExit(f'[models] 未知机型：{_pre_model!r}；可用机型：{available}')
+
+_bootstrap_models(_pre_model)
+model_joint_map = importlib.import_module(f'models.{_model_dirname}.joint_map')
+ALL_GROUPS = model_joint_map.ALL_GROUPS
+CONTROLLABLE_GROUPS = model_joint_map.CONTROLLABLE_GROUPS
+JOINT_TABLE = model_joint_map.JOINT_TABLE
+clamp = model_joint_map.clamp
+urdf_joint_names = model_joint_map.urdf_joint_names
 
 
 PROTOCOL_VERSION = 1
@@ -288,8 +294,7 @@ class FakeDexRobot:
             return {'accepted': False, 'reason': '未使能'}
         applied, rejected = {}, {}
         for name, value in (targets or {}).items():
-            from joint_map import BY_URDF
-            entry = BY_URDF.get(name)
+            entry = model_joint_map.BY_URDF.get(name)
             if entry is None:
                 rejected[name] = '未知关节'
                 continue
@@ -319,8 +324,7 @@ class FakeDexRobot:
         for frame in frames:
             targets = {}
             for name, value in (frame.get('targets') or {}).items():
-                from joint_map import BY_URDF
-                entry = BY_URDF.get(name)
+                entry = model_joint_map.BY_URDF.get(name)
                 if entry is None or entry['group'] not in CONTROLLABLE_GROUPS:
                     continue
                 clamped = clamp(name, value)
@@ -400,7 +404,7 @@ class FakeHands:
         self._state = {'left': [0.0] * 6, 'right': [0.0] * 6}
 
     def describe(self):
-        from joint_map import hands_joint_map
+        hands_joint_map = model_joint_map.hands_joint_map
         return {
             'vendor': self.vendor,
             'type': self.hand_type,
@@ -576,23 +580,26 @@ class DexBridge:
     def _setup_backends(self):
         if self.args.dry_run:
             self.log('[bridge] dry-run 模式：不连接 ROS，仅验证协议')
-            self.robot = FakeDexRobot(self.args.rate, self.args.max_speed,
-                                      self.args.release_after_s, self.log)
-            self.hands = FakeHands(self.log)
-            self.cameras = FakeCameraManager(self.log)
+            self.robot, self.hands, self.cameras = BackendBundle(
+                FakeDexRobot(self.args.rate, self.args.max_speed,
+                             self.args.release_after_s, self.log),
+                FakeHands(self.log),
+                FakeCameraManager(self.log),
+            )
             return
 
         import rclpy
-        # 机型后端由 models/<model>/backend.py 提供，协议层保持机型无关。
-        import backend as model_backend
+        # 机型后端由 models.<机型>.backend 显式导入，协议层保持机型无关。
+        backend_module = importlib.import_module(
+            f'models.{model_dir(self.args.model)}.backend')
 
         # 必须先等网络：rclpy.init 会立刻建 DDS 参与者，网卡没 IP 时传输永久残缺。
         self._wait_for_ipv4()
 
         rclpy.init(args=None)
         self.ros_node = rclpy.create_node('robot_motion_dex_bridge')
-        self.robot, self.hands, self.cameras = model_backend.create_backends(
-            self.ros_node, self.args, self.log)
+        bundle = backend_module.create_backends(self.ros_node, self.args, self.log)
+        self.robot, self.hands, self.cameras = bundle.robot, bundle.hands, bundle.cameras
 
         # 相机回调在独立的可重入回调组里（见 dex_camera），这里必须用多线程执行器：
         # 单线程时一帧 11~35ms 的解码会直接顶掉 50Hz 的 /arm/cmd 定时器。

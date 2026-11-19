@@ -3,8 +3,8 @@
 每个机型一个子目录，通过 model.json 声明机型 ID 与模块映射；
 discovery.discover_models() 自动扫描，新增机型无需修改本文件。
 
-协议层入口 dex_bridge.py 通过 bootstrap() 把当前机型目录注入 sys.path，
-使机型模块内的扁平 import（from joint_map import ...）继续可用。
+机型模块统一使用包内相对导入（models.<机型>.*），契约见 contracts.py。
+bootstrap() 仅作为兼容旧的扁平 import 的兜底，新代码不再依赖它。
 """
 
 from __future__ import annotations

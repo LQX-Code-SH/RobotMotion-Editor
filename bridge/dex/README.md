@@ -22,8 +22,9 @@ bridge/dex/
     _template/               # 新增机型复制模板
 ```
 
-`dex_bridge.py` 按 `--model` 注入对应机型目录到 `sys.path`，并调用该目录 `backend.create_backends()`
-创建 `(robot, hands, cameras)`。协议层不含任何机型专属逻辑。
+`dex_bridge.py` 按 `--model` 显式导入 `models.<机型>.joint_map` 与 `models.<机型>.backend`，
+调用 `create_backends()` 返回 `BackendBundle(robot, hands, cameras)`；接口契约见
+`models/contracts.py`。协议层不含任何机型专属逻辑，`bootstrap()` 仅为兼容旧的扁平导入兜底。
 
 新增机型无需改协议层：复制 `models/_template/` 与 `robot/_template/`，填写 `model.json`
 和 `profile.json`，运行 `pnpm run robot:index` 与 `pnpm test`；`models/discovery.py`

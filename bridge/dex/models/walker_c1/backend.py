@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from models.contracts import BackendBundle
+
 
 class _NoCamera:
     available = False
@@ -30,8 +32,8 @@ class _NoCamera:
         pass
 
 
-def create_backends(node, args, log=print):
-    import joint_map
+def create_backends(node, args, log=print) -> BackendBundle:
+    from . import joint_map
     from models._walker_common.walker_robot import WalkerRobot
     from models._walker_common.walker_hands import WalkerHands
 
@@ -43,4 +45,4 @@ def create_backends(node, args, log=print):
         logger=log,
     )
     hands = WalkerHands(node, joint_map, log)
-    return robot, hands, _NoCamera()
+    return BackendBundle(robot, hands, _NoCamera())

@@ -26,7 +26,7 @@ from __future__ import annotations
 import importlib
 import threading
 
-from joint_map import hands_joint_map
+from .joint_map import hands_joint_map
 
 BRAINCO_MOTORS = 6
 INSPIRE_JOINTS = 13

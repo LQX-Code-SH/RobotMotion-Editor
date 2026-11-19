@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+from models.contracts import BackendBundle
 
-def create_backends(node, args, log=print):
-    from dex_robot import DexRobot
-    from dex_hands import create_hands
-    from dex_camera import CameraManager
+
+def create_backends(node, args, log=print) -> BackendBundle:
+    from .dex_robot import DexRobot
+    from .dex_hands import create_hands
+    from .dex_camera import CameraManager
 
     robot = DexRobot(
         node,
@@ -24,4 +26,4 @@ def create_backends(node, args, log=print):
     )
     hands = create_hands(node, args.hand, log)
     cameras = CameraManager(node, log)
-    return robot, hands, cameras
+    return BackendBundle(robot, hands, cameras)
