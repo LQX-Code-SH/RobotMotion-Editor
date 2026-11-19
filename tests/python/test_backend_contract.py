@@ -225,9 +225,7 @@ class BackendContractTest(unittest.TestCase):
 
         self.assertTrue(any(pub.messages for pub in node.publishers), 'Walker 未立即发布关节命令')
 
-    @unittest.expectedFailure
     def test_pro_set_joint_targets_publishes(self):
-        """已知缺口：ProRobot 只写缓存，没有 publish/timer。修复后移除装饰器。"""
         node, robot, _hands, _cameras, jm = self.make_backends('walker-tienkung-pro')
         robot.enable()
         robot.set_joint_targets({self.controllable_joint(jm): 0.1})
@@ -235,6 +233,21 @@ class BackendContractTest(unittest.TestCase):
         self.fire_timers(node)
 
         self.assertTrue(any(pub.messages for pub in node.publishers), 'Pro 未发布关节命令')
+
+    def test_pro_trajectory_completes(self):
+        node, robot, _hands, _cameras, jm = self.make_backends('walker-tienkung-pro')
+        joint = self.controllable_joint(jm)
+        robot.enable()
+        robot.start_trajectory('pro-traj', [
+            {'t': 0, 'targets': {joint: 0.0}},
+            {'t': 1, 'targets': {joint: 0.1}},
+        ])
+
+        time.sleep(0.01)
+        self.fire_timers(node)
+
+        self.assertIsNone(robot.trajectory_progress())
+        self.assertEqual(robot.take_trajectory_done(), 'pro-traj')
 
     @unittest.expectedFailure
     def test_walker_trajectory_completes(self):
