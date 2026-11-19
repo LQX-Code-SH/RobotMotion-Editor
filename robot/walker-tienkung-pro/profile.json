@@ -386,8 +386,17 @@
   "bridge": {
     "adapter": "mock",
     "wsPort": 8081,
+    "statusPort": 8082,
+    "cameraPort": 8083,
     "beaconPort": 45678,
     "protocol": 1,
+    "deploy": {
+      "id": "tienkung_pro",
+      "label": "天工 Pro",
+      "supported": false,
+      "reason": "当前 Release 仅提供 tienkung_dex 安装包，tienkung_pro 尚未打包",
+      "hand": "none"
+    },
     "backend": "tienkung_pro",
     "displayName": "Walker TienKung Pro",
     "capabilities": {

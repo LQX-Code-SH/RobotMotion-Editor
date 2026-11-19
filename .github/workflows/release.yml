@@ -44,6 +44,9 @@ jobs:
       - name: Check robot index
         run: node scripts/generate-robot-index.mjs --check
 
+      - name: Check deploy manifest
+        run: node scripts/generate-deploy-manifest.mjs --check
+
       - name: Run tests
         run: pnpm test
 

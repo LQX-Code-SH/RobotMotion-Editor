@@ -9,8 +9,17 @@
     "backend": "new_model",
     "displayName": "New Model",
     "wsPort": 8081,
+    "statusPort": 8082,
+    "cameraPort": 8083,
     "beaconPort": 45678,
     "protocol": 1,
+    "deploy": {
+      "id": "new-model-id",
+      "label": "New Model",
+      "supported": false,
+      "reason": "新机型尚未真机验证 / 打包",
+      "hand": "none"
+    },
     "capabilities": {
       "jointGroups": ["arm", "head", "waist"],
       "trajectory": true,

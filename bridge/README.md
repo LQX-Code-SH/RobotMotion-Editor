@@ -23,7 +23,7 @@ station.js (操作站网关, :8090)
 
 - **robot-server.js**：部署在机器人板载计算机上。周期广播 UDP 信标、响应探测、接受 WebSocket 控制指令，并把指令路由给机型适配器。
 - **station.js**：运行在操作员电脑。浏览器无法直接发 UDP，因此由 station 代为发现设备（信标 + 广播探测），并提供 WebSocket 反向代理；同时提供设备列表 API。
-- **deploy/**：固件清单与部署编排。`manifest.json` 定义固件类型、文件清单、默认端口；`deployer.js` 负责预检、上传、依赖安装、启停与校验。
+- **deploy/**：部署编排。`manifest.json` 由 `scripts/generate-deploy-manifest.mjs` 从 `robot/*/profile.json` 生成；`deployer.js` 负责预检、上传、依赖安装、启停与校验。
 - **adapters/**：机型适配层。`MockAdapter` 用于无硬件联调；`UbtechAdapter` 为优必选 Walker 系列接入接缝层（注入 SDK 实现）。
 - **dex/**：天工 DEX（TienKung Dex）真机 Python 桥接，直连 ROS 2 话题，支持 31 个身体关节、BrainCo/Inspire 灵巧手与 4 路相机推流，协议与 Node 版一致并扩展了手部/相机消息。详见 [`dex/README.md`](dex/README.md)。
 
@@ -133,7 +133,7 @@ scripts/install-remote.sh uninstall --host <IP> --user <用户名> --purge  # dp
 - 所有端口、型号参数与用户名经校验，远端命令参数走白名单 + shell 引号转义；写入 `bridge.conf` 的键名与值都有正则白名单；
 - 同一台机器人同时只允许一个安装任务（脚本侧实际执行时间很短，管理器里按钮会自动禁用）。
 
-固件型号清单见 [`deploy/manifest.json`](deploy/manifest.json)：型号（`tienkung_dex` / `tienkung_pro` / `walker_c1` / `walker_s2`）是参数列表，每个型号用 `package` 指定 `Release/` 下的匹配模式、用 `ports` 覆盖默认端口；当前只有 `tienkung_dex` 已打包，其余型号会被拦下并提示。
+固件型号清单见 [`deploy/manifest.json`](deploy/manifest.json)，由 `pnpm run deploy:manifest` 从各机型 `profile.json` 生成：型号 ID、端口、`BRIDGE_HAND` 与支持状态均来自 profile，公共安装包模式与服务名由生成器 defaults 统一提供；当前只有 `tienkung_dex` 开放安装，其余型号会被拦下并提示。
 
 ## 机器人端启动参数（robot-server.js）
 

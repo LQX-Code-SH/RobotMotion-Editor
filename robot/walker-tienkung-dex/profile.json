@@ -479,8 +479,16 @@
     "backend": "dex",
     "displayName": "TienKung Dex",
     "wsPort": 8081,
+    "statusPort": 8082,
+    "cameraPort": 8083,
     "beaconPort": 45678,
     "protocol": 1,
+    "deploy": {
+      "id": "tienkung_dex",
+      "label": "天工 DEX",
+      "supported": true,
+      "hand": "inspire"
+    },
     "capabilities": {
       "jointGroups": ["arm", "head", "waist"],
       "trajectory": true,

@@ -372,8 +372,17 @@
   "bridge": {
     "adapter": "mock",
     "wsPort": 8081,
+    "statusPort": 8082,
+    "cameraPort": 8083,
     "beaconPort": 45678,
     "protocol": 1,
+    "deploy": {
+      "id": "walker_s2",
+      "label": "Walker S2",
+      "supported": false,
+      "reason": "当前 Release 仅提供 tienkung_dex 安装包，walker_s2 尚未打包",
+      "hand": "none"
+    },
     "backend": "walker_s2",
     "displayName": "Walker S2",
     "capabilities": {

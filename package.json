@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "serve": "vite preview --host 0.0.0.0",
     "robot:index": "node scripts/generate-robot-index.mjs",
+    "deploy:manifest": "node scripts/generate-deploy-manifest.mjs",
     "test": "node --test tests/animation/*.test.js tests/ik/*.test.js tests/robot/*.test.js tests/mjcf/*.test.js tests/tools/*.test.js"
   },
   "keywords": [

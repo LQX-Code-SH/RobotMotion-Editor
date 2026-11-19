@@ -33,7 +33,7 @@
 | `src/`、`index.html` | 前端（Three.js 视口、动画编辑器、真机控制面板） |
 | `bridge/` | 机器人端桥接 `robot-server.js` 与操作站网关 `station.js` |
 | `bridge/dex/` | 协议层入口 `dex_bridge.py` + `models/<机型>/` 分目录的 ROS 2 适配；每机型 `model.json` 自动发现，`_template/` 为新机型模板 |
-| `bridge/deploy/` | 型号清单与安装编排（`manifest.json` / `deployer.js` / `cli.js`） |
+| `bridge/deploy/` | 安装编排（`deployer.js` / `cli.js`）；`manifest.json` 由 `pnpm run deploy:manifest` 从机型 profile 生成 |
 | `manager/` | **robot-editor 管理器**（Tkinter GUI：安装 / 启停 / 重启 / 日志 / 自启 / 卸载） |
 | `packaging/` | `.deb` 打包素材（systemd 单元、postinst、nginx 站点、管理命令） |
 | `scripts/` | 构建与部署脚本（`build-deb.sh` / `build-manager.sh` / `install-remote.sh` / `deploy-web.sh`） |
