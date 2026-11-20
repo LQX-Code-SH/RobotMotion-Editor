@@ -17,7 +17,7 @@ import {
     selectUpperBodyTargets,
     smoothstep,
     upperBodyJointNames
-} from '../../src/robot/robotMotion.js';
+} from '../../src/features/robot/robotMotion.js';
 
 const device = {
     joints: [

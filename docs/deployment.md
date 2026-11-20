@@ -84,7 +84,7 @@ C-2 参考链路：`浏览器 → 云 VPS（Nginx，443，证书）→ 隧道（
 
 ### 2.5 前端改造点
 
-- `src/robot/RobotConnectionUI.js`：`stationUrl` 目前只支持 `http://host:8090`，需支持显式 `https://`，并把 `ws` 升级为 `wss`
+- `src/features/robot/RobotConnectionUI.js`：`stationUrl` 目前只支持 `http://host:8090`，需支持显式 `https://`，并把 `ws` 升级为 `wss`
 - 相机通道经网关同源代理，避免图片/流被混合内容拦截
 - 连接区增加"网关模式 / 直连模式"提示，明确当前链路
 

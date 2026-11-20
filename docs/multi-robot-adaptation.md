@@ -385,7 +385,7 @@ robot-editor-<model>_<ver>_<arch>.deb    每机型：ROS2 消息包 + SDK + back
 | Pro 话题配置（离线源） | `/home/liu/work/UBTECH-IL-LAB/ubt_sim/teleoperation/bridges/tienkung_pro/bridge_config.yaml:14-41` |
 | Walker C1 桥接（离线源） | `/home/liu/work/UBTECH-IL-LAB/ubt_IL/walker_c1/ros2_walker_c1_bridge.py` |
 | Walker 轨迹处理（离线源） | `/home/liu/work/UBTECH-IL-LAB/ubt_IL/walker_c1/chunk_processor.py` |
-| 前端手部换算入口 | `/data/work/robot_viewer/src/robot/robotMotion.js:325-403` |
+| 前端手部换算入口 | `/data/work/robot_viewer/src/features/robot/robotMotion.js:325-403` |
 | 夹爪单通道单测 | `/data/work/robot_viewer/tests/robot/robot-motion.test.js`（`pgc-gripper single channel`） |
 | S2 夹爪话题（离线源） | `/home/liu/work/UBTECH-IL-LAB/ubt_IL/walker_s2/.../ecat_task_msgs/msg/GripCmd.msg` |
 | 相机 relay | `/data/work/robot_viewer/bridge/dex/models/tienkung_dex/dex_camera.py:31-42` |

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RobotBridgeClient } from '../../src/robot/RobotBridgeClient.js';
+import { RobotBridgeClient } from '../../src/features/robot/RobotBridgeClient.js';
 
 class FakeWebSocket {
     static OPEN = 1;

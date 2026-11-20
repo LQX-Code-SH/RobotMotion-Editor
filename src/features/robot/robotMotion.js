@@ -1,4 +1,4 @@
-import { evaluateClip } from '../features/animation/core/BezierEvaluator.js';
+import { evaluateClip } from '../animation/core/BezierEvaluator.js';
 
 /**
  * 真机上肢动作规划（纯逻辑，不碰 DOM / WebSocket，便于单测）。

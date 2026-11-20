@@ -4,7 +4,7 @@ import {
     filterSyncPose,
     hasPoseChanged,
     SYNC_EPSILON
-} from '../../src/robot/robotSync.js';
+} from '../../src/features/robot/robotSync.js';
 
 const device = {
     joints: [

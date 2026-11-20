@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { applyJointGhost, computeJointGhostBase } from '../../src/robot/RobotGhost.js';
+import { applyJointGhost, computeJointGhostBase } from '../../src/features/robot/RobotGhost.js';
 
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 
