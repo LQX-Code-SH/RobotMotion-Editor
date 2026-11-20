@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { MJCFAdapter } from '../../src/adapters/MJCFAdapter.js';
+import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
 import { resolveFileFromMap } from '../../src/utils/FileUtils.js';
 
 function element(attributes = {}) {

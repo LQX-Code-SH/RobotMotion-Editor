@@ -3,7 +3,7 @@ import { classifyJointPart, isScalarJoint, isPassiveHandJoint, JOINT_PARTS } fro
  * JointControlsUI - Joint control UI module
  * Responsible for creating and managing joint control sliders and input fields
  */
-import { ModelLoaderFactory } from '../loaders/ModelLoaderFactory.js';
+import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
 import { XMLUpdater } from '../utils/XMLUpdater.js';
 
 const JOINT_GROUP_LABEL_KEYS = {

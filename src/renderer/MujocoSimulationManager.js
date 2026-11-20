@@ -9,7 +9,7 @@ import { MathUtils } from '../utils/MathUtils.js';
 import { CoordinateAxesManager } from './CoordinateAxesManager.js';
 import { InertialVisualization } from './InertialVisualization.js';
 import { VisualizationManager } from './VisualizationManager.js';
-import { MJCFAdapter } from '../adapters/MJCFAdapter.js';
+import { MJCFAdapter } from '../features/model-formats/adapters/MJCFAdapter.js';
 import { cleanFilePath, resolveFileFromMap } from '../utils/FileUtils.js';
 import { getMujocoRuntime } from '../utils/MujocoRuntime.js';
 

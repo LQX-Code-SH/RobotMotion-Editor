@@ -22,7 +22,7 @@
  */
 import { XacroParser } from 'xacro-parser';
 import { URDFAdapter } from './URDFAdapter.js';
-import { resolveFileFromMap } from '../utils/FileUtils.js';
+import { resolveFileFromMap } from '../../../utils/FileUtils.js';
 
 export class XacroAdapter {
     /**

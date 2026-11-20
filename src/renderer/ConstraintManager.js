@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ModelLoaderFactory } from '../loaders/ModelLoaderFactory.js';
+import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
 import { ClosedChainSolver } from '../utils/ClosedChainSolver.js';
 
 /**

@@ -1,5 +1,5 @@
 import { isScalarJoint } from '../../models/UnifiedRobotModel.js';
-import { ModelLoaderFactory } from '../../loaders/ModelLoaderFactory.js';
+import { ModelLoaderFactory } from '../../features/model-formats/loaders/ModelLoaderFactory.js';
 
 /**
  * The single write path for robot poses.

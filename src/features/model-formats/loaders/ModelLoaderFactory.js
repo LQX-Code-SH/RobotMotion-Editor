@@ -7,7 +7,7 @@ import { URDFAdapter } from '../adapters/URDFAdapter.js';
 import { MJCFAdapter } from '../adapters/MJCFAdapter.js';
 import { USDAdapter } from '../adapters/USDAdapter.js';
 import { XacroAdapter } from '../adapters/XacroAdapter.js';
-import { resolveFileFromMap } from '../utils/FileUtils.js';
+import { resolveFileFromMap } from '../../../utils/FileUtils.js';
 
 export class ModelLoaderFactory {
     /**

@@ -2,7 +2,7 @@
  * USD Adapter
  * All USD formats use OpenUSD WASM loader (rendered in separate iframe)
  */
-import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties, GeometryType } from '../models/UnifiedRobotModel.js';
+import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties, GeometryType } from '../../../models/UnifiedRobotModel.js';
 import * as THREE from 'three';
 
 export class USDAdapter {

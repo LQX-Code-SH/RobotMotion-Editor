@@ -2,11 +2,11 @@
  * MJCF Adapter
  * Parses MJCF XML and converts to unified model
  */
-import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties, GeometryType, Constraint } from '../models/UnifiedRobotModel.js';
+import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties, GeometryType, Constraint } from '../../../models/UnifiedRobotModel.js';
 import * as THREE from 'three';
-import { loadMeshFile, ensureMeshHasPhongMaterial, getLoaders } from '../utils/MeshLoader.js';
-import { cleanFilePath, resolveFileFromMap } from '../utils/FileUtils.js';
-import { ClosedChainSolver } from '../utils/ClosedChainSolver.js';
+import { loadMeshFile, ensureMeshHasPhongMaterial, getLoaders } from '../../../utils/MeshLoader.js';
+import { cleanFilePath, resolveFileFromMap } from '../../../utils/FileUtils.js';
+import { ClosedChainSolver } from '../../../utils/ClosedChainSolver.js';
 
 export class MJCFAdapter {
     /**
@@ -202,7 +202,7 @@ export class MJCFAdapter {
 
         const hasAttachments = !!doc.querySelector('attach');
         if (hasAttachments) {
-            const { compileMJCFWithAttachments } = await import('../utils/MJCFAttachments.js');
+            const { compileMJCFWithAttachments } = await import('../../../utils/MJCFAttachments.js');
             processedContent = await compileMJCFWithAttachments(processedContent, fileMap, basePath, this);
             doc = parser.parseFromString(processedContent, 'text/xml');
         }

@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DOMParser } from 'linkedom';
 import * as THREE from 'three';
-import { MJCFAdapter } from '../../src/adapters/MJCFAdapter.js';
+import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
 
 globalThis.DOMParser = DOMParser;
 

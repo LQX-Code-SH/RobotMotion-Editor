@@ -3,7 +3,7 @@
  * Converts urdf-loaders result to unified model
  */
 import * as THREE from 'three';
-import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties } from '../models/UnifiedRobotModel.js';
+import { UnifiedRobotModel, Link, Joint, JointLimits, VisualGeometry, CollisionGeometry, InertialProperties } from '../../../models/UnifiedRobotModel.js';
 
 export class URDFAdapter {
     /**
