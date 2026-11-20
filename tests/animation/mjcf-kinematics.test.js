@@ -7,7 +7,7 @@ import { Vector3, Quaternion } from 'three';
 import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
 import { ConstraintManager } from '../../src/renderer/ConstraintManager.js';
 import { MujocoSimulationManager } from '../../src/renderer/MujocoSimulationManager.js';
-import { PoseController } from '../../src/animation/runtime/PoseController.js';
+import { PoseController } from '../../src/features/animation/runtime/PoseController.js';
 
 globalThis.DOMParser = DOMParser;
 globalThis.XMLSerializer = class { serializeToString(doc) { return doc.toString(); } };

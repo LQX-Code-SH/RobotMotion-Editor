@@ -1,4 +1,4 @@
-import { isScalarJoint } from '../../models/UnifiedRobotModel.js';
+import { isScalarJoint } from '../../../models/UnifiedRobotModel.js';
 const SCHEMA_VERSION = 2;
 const DEFAULT_DURATION_MS = 10000;
 const MAX_DURATION_MS = 4 * 60 * 60 * 1000;

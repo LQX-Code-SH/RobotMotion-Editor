@@ -1,4 +1,4 @@
-import { isScalarJoint } from '../../models/UnifiedRobotModel.js';
+import { isScalarJoint } from '../../../models/UnifiedRobotModel.js';
 import { AnimationStore } from '../core/AnimationStore.js';
 import { EditorSelection } from '../core/EditorSelection.js';
 import { PlaybackController } from '../runtime/PlaybackController.js';

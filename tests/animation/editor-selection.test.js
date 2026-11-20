@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EditorSelection } from '../../src/animation/core/EditorSelection.js';
-import { AnimationStore } from '../../src/animation/core/AnimationStore.js';
+import { EditorSelection } from '../../src/features/animation/core/EditorSelection.js';
+import { AnimationStore } from '../../src/features/animation/core/AnimationStore.js';
 
 test('repeated joint previews preserve track selection without notifying canvases again', () => {
     const selection = new EditorSelection();

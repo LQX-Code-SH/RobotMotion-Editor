@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DOMParser } from 'linkedom';
 import { Vector3 } from 'three';
 import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
-import { PoseController } from '../../src/animation/runtime/PoseController.js';
+import { PoseController } from '../../src/features/animation/runtime/PoseController.js';
 import { ConstraintManager } from '../../src/renderer/ConstraintManager.js';
 import { getMujocoRuntime } from '../../src/utils/MujocoRuntime.js';
 
