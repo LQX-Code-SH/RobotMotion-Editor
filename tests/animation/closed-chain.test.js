@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { DOMParser } from 'linkedom';
 import { Vector3, Quaternion, Group } from 'three';
 import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
-import { ConstraintManager } from '../../src/renderer/ConstraintManager.js';
+import { ConstraintManager } from '../../src/features/viewport/renderer/ConstraintManager.js';
 import { PoseController } from '../../src/features/animation/runtime/PoseController.js';
 import { JointDragControls } from '../../src/utils/JointDragControls.js';
 

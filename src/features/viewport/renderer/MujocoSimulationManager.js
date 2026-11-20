@@ -4,14 +4,14 @@
  * Does not use iframe, runs in the same rendering layer
  */
 import * as THREE from 'three';
-import { DragStateManager } from '../utils/DragStateManager.js';
-import { MathUtils } from '../utils/MathUtils.js';
+import { DragStateManager } from '../../../utils/DragStateManager.js';
+import { MathUtils } from '../../../utils/MathUtils.js';
 import { CoordinateAxesManager } from './CoordinateAxesManager.js';
 import { InertialVisualization } from './InertialVisualization.js';
 import { VisualizationManager } from './VisualizationManager.js';
-import { MJCFAdapter } from '../features/model-formats/adapters/MJCFAdapter.js';
-import { cleanFilePath, resolveFileFromMap } from '../utils/FileUtils.js';
-import { getMujocoRuntime } from '../utils/MujocoRuntime.js';
+import { MJCFAdapter } from '../../model-formats/adapters/MJCFAdapter.js';
+import { cleanFilePath, resolveFileFromMap } from '../../../utils/FileUtils.js';
+import { getMujocoRuntime } from '../../../utils/MujocoRuntime.js';
 
 export class MujocoSimulationManager {
     constructor(sceneManager) {

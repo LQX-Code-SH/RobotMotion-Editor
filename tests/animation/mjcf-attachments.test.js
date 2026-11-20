@@ -4,7 +4,7 @@ import { DOMParser } from 'linkedom';
 import { Vector3 } from 'three';
 import { MJCFAdapter } from '../../src/features/model-formats/adapters/MJCFAdapter.js';
 import { PoseController } from '../../src/features/animation/runtime/PoseController.js';
-import { ConstraintManager } from '../../src/renderer/ConstraintManager.js';
+import { ConstraintManager } from '../../src/features/viewport/renderer/ConstraintManager.js';
 import { getMujocoRuntime } from '../../src/utils/MujocoRuntime.js';
 
 globalThis.DOMParser = DOMParser;

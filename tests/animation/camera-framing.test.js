@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Box3, PerspectiveCamera, Vector3 } from 'three';
-import { SceneManager } from '../../src/renderer/SceneManager.js';
+import { SceneManager } from '../../src/features/viewport/renderer/SceneManager.js';
 
 function createManager(aspect) {
     const camera = new PerspectiveCamera(75, aspect, 0.1, 1000);

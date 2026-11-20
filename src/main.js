@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import * as d3 from 'd3';
-import { SceneManager } from './renderer/SceneManager.js';
+import { SceneManager } from './features/viewport/renderer/SceneManager.js';
 import { UIController } from './ui/UIController.js';
 import { FileHandler } from './controllers/FileHandler.js';
 import { JointControlsUI } from './ui/JointControlsUI.js';
@@ -13,8 +13,8 @@ import { ModelGraphView } from './views/ModelGraphView.js';
 import { FileTreeView } from './views/FileTreeView.js';
 import { CodeEditorManager } from './controllers/CodeEditorManager.js';
 import { MeasurementController } from './controllers/MeasurementController.js';
-import { USDViewerManager } from './renderer/USDViewerManager.js';
-import { MujocoSimulationManager } from './renderer/MujocoSimulationManager.js';
+import { USDViewerManager } from './features/viewport/renderer/USDViewerManager.js';
+import { MujocoSimulationManager } from './features/viewport/renderer/MujocoSimulationManager.js';
 import { i18n } from './utils/i18n.js';
 import { PoseController } from './features/animation/runtime/PoseController.js';
 import { AnimationWorkspace } from './features/animation/ui/AnimationWorkspace.js';

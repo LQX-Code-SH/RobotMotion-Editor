@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { SceneManager } from '../../src/renderer/SceneManager.js';
+import { SceneManager } from '../../src/features/viewport/renderer/SceneManager.js';
 
 test('renderIfNeeded submits one frame per dirty state', () => {
     let renderCount = 0;
@@ -39,7 +39,7 @@ test('renderIfNeeded submits one frame per dirty state', () => {
 test('application has one animation loop and uses the dirty render gate', () => {
     const mainSource = readFileSync(new URL('../../src/main.js', import.meta.url), 'utf8');
     const sceneManagerSource = readFileSync(
-        new URL('../../src/renderer/SceneManager.js', import.meta.url),
+        new URL('../../src/features/viewport/renderer/SceneManager.js', import.meta.url),
         'utf8'
     );
     const animateStart = mainSource.indexOf('    animate() {');

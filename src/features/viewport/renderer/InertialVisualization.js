@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MathUtils } from '../utils/MathUtils.js';
+import { MathUtils } from '../../../utils/MathUtils.js';
 
 /**
  * InertialVisualization - Handles center of mass and inertia visualization

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CoordinateAxesManager } from '../../src/renderer/CoordinateAxesManager.js';
+import { CoordinateAxesManager } from '../../src/features/viewport/renderer/CoordinateAxesManager.js';
 
 function createManager(names) {
     const manager = Object.create(CoordinateAxesManager.prototype);

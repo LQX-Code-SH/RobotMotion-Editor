@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { PointerJointDragControls } from '../utils/JointDragControls.js';
-import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
+import { PointerJointDragControls } from '../../../utils/JointDragControls.js';
+import { ModelLoaderFactory } from '../../model-formats/loaders/ModelLoaderFactory.js';
 import { EnvironmentManager } from './EnvironmentManager.js';
 import { VisualizationManager } from './VisualizationManager.js';
 import { InertialVisualization } from './InertialVisualization.js';

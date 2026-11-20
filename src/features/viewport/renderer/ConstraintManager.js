@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
-import { ClosedChainSolver } from '../utils/ClosedChainSolver.js';
+import { ModelLoaderFactory } from '../../model-formats/loaders/ModelLoaderFactory.js';
+import { ClosedChainSolver } from '../../../utils/ClosedChainSolver.js';
 
 /**
  * ConstraintManager - Handles parallel mechanism constraint visualization and solving
