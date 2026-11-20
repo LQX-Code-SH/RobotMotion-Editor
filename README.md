@@ -30,7 +30,13 @@
 
 | 路径 | 内容 |
 |---|---|
-| `src/`、`index.html` | 前端（Three.js 视口、动画编辑器、真机控制面板） |
+| `src/`、`index.html` | 前端入口；`src/main.js` 只做应用装配 |
+| `src/features/model-formats/` | 模型格式适配与加载（URDF / MJCF / USD / Xacro） |
+| `src/features/animation/` | 动画状态、时间轴、曲线与播放控制 |
+| `src/features/robot/` | 机型选择、真机连接、同步与相机 |
+| `src/features/viewport/` | Three.js 场景、渲染与仿真管理 |
+| `src/features/workspace/` | 文件/代码编辑、UI 控件、视图与测量 |
+| `src/models/`、`src/utils/` | 跨功能共享的数据模型与工具 |
 | `bridge/` | 机器人端桥接 `robot-server.js` 与操作站网关 `station.js` |
 | `bridge/dex/` | 协议层入口 `dex_bridge.py` + `models/<机型>/` 分目录的 ROS 2 适配；每机型 `model.json` 自动发现，`_template/` 为新机型模板 |
 | `bridge/deploy/` | 安装编排（`deployer.js` / `cli.js`）；`manifest.json` 由 `pnpm run deploy:manifest` 从机型 profile 生成 |
