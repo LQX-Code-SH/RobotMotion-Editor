@@ -44,8 +44,8 @@ __pycache__/
 # IDE / agent 项目数据（本地计划与缓存）
 .codebuddy/
 
-# 自包含安装包：随 GitHub Release 附件分发，不进仓库
+# 本地发布产物：安装包与真机配置备份均不进仓库
 # 构建 + 发布：PUBLISH=1 scripts/build-deb.sh
-Release/*.deb
+Release/
 
 dist-manager/
