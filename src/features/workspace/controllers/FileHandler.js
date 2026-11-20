@@ -3,8 +3,8 @@
  * Handles file drag-drop, loading, type detection, etc.
  */
 import * as THREE from 'three';
-import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
-import { readFileContent, getFileFromEntry, getFileTypeFromExtension, getFileDisplayType } from '../utils/FileUtils.js';
+import { ModelLoaderFactory } from '../../model-formats/loaders/ModelLoaderFactory.js';
+import { readFileContent, getFileFromEntry, getFileTypeFromExtension, getFileDisplayType } from '../../../utils/FileUtils.js';
 
 export class FileHandler {
     constructor() {

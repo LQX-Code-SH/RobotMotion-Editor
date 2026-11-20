@@ -1,10 +1,10 @@
-import { classifyJointPart, isScalarJoint, isPassiveHandJoint, JOINT_PARTS } from '../models/UnifiedRobotModel.js';
+import { classifyJointPart, isScalarJoint, isPassiveHandJoint, JOINT_PARTS } from '../../../models/UnifiedRobotModel.js';
 /**
  * JointControlsUI - Joint control UI module
  * Responsible for creating and managing joint control sliders and input fields
  */
-import { ModelLoaderFactory } from '../features/model-formats/loaders/ModelLoaderFactory.js';
-import { XMLUpdater } from '../utils/XMLUpdater.js';
+import { ModelLoaderFactory } from '../../model-formats/loaders/ModelLoaderFactory.js';
+import { XMLUpdater } from '../../../utils/XMLUpdater.js';
 
 const JOINT_GROUP_LABEL_KEYS = {
     head: 'jointPartHead',

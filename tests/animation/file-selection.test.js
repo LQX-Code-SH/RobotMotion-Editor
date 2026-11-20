@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FileHandler } from '../../src/controllers/FileHandler.js';
+import { FileHandler } from '../../src/features/workspace/controllers/FileHandler.js';
 
 const handler = new FileHandler();
 const model = name => ({ name, category: 'model' });

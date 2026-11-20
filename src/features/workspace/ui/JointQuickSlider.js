@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { findJointAxisName, isVisualizationObject } from '../utils/JointDragControls.js';
+import { findJointAxisName, isVisualizationObject } from '../../../utils/JointDragControls.js';
 
 const CLICK_MOVE_TOLERANCE = 5;
 const CLICK_TIME_LIMIT = 400;

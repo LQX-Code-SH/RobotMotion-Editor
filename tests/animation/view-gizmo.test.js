@@ -4,7 +4,7 @@ import { parseHTML } from 'linkedom';
 import { Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SceneManager } from '../../src/features/viewport/renderer/SceneManager.js';
-import { ViewGizmo } from '../../src/ui/ViewGizmo.js';
+import { ViewGizmo } from '../../src/features/workspace/ui/ViewGizmo.js';
 
 function createManager(document) {
     const canvas = document.createElement('canvas');

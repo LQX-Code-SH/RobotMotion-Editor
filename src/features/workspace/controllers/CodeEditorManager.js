@@ -3,7 +3,7 @@
  * Responsible for complete code editor functionality: open, close, save, reload, etc.
  */
 import { CodeEditor } from '../editor/CodeEditor.js';
-import { readFileContent } from '../utils/FileUtils.js';
+import { readFileContent } from '../../../utils/FileUtils.js';
 
 export class CodeEditorManager {
     constructor() {
